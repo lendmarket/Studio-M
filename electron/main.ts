@@ -6,6 +6,10 @@ import path from 'path';
 import { Readable } from 'stream';
 import { ffmpegPath, probe, thumbnails, waveform } from './ffmpeg';
 import { buildExport, ExportJob } from '../src/core/exportGraph';
+import {
+  copyMedia, createProjectFolder, detectGoogleDrive, getSettings, isOnGoogleDrive, listExports, listProjects, saveSettings,
+  Settings, trashProject, writeDataUrl,
+} from './workspace';
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'smedia', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true, bypassCSP: true } },
@@ -202,6 +206,22 @@ ipcMain.handle('app:pendingOpen', () => {
   return p;
 });
 ipcMain.handle('app:version', () => app.getVersion());
+ipcMain.handle('ws:settings', () => ({ ...getSettings(), googleDrive: detectGoogleDrive(), onDrive: isOnGoogleDrive(getSettings().workspace) }));
+ipcMain.handle('ws:saveSettings', (_e, patch: Partial<Settings>) => {
+  saveSettings(patch);
+  return { ...getSettings(), googleDrive: detectGoogleDrive(), onDrive: isOnGoogleDrive(getSettings().workspace) };
+});
+ipcMain.handle('ws:chooseFolder', async () => {
+  const r = await dialog.showOpenDialog(win!, { properties: ['openDirectory', 'createDirectory'], title: '작업 폴더 선택' });
+  return r.canceled ? null : r.filePaths[0];
+});
+ipcMain.handle('ws:createProject', (_e, name: string) => createProjectFolder(name));
+ipcMain.handle('ws:copyMedia', (_e, projectFile: string, src: string) => copyMedia(projectFile, src));
+ipcMain.handle('ws:projects', () => listProjects());
+ipcMain.handle('ws:exports', () => listExports());
+ipcMain.handle('ws:trash', (_e, file: string) => trashProject(file));
+ipcMain.handle('ws:writeDataUrl', (_e, file: string, data: string) => writeDataUrl(file, data));
+ipcMain.handle('ws:openPath', (_e, p: string) => shell.openPath(p));
 ipcMain.on('app:ready', () => {
   rendererReady = true;
   log('화면 준비 완료', safeMode ? '(안전 모드)' : '');

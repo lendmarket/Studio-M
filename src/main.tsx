@@ -40,4 +40,5 @@ requestAnimationFrame(() => requestAnimationFrame(() => (window as any).api?.rea
 import { useStore } from './store';
 import { importFiles } from './media';
 import { renderTextPng } from './core/text';
-(window as any).__studio = { store: useStore, importFiles, renderTextPng };
+import { createProject, goHome } from './projectIO';
+(window as any).__studio = { store: useStore, importFiles, renderTextPng, createProject, goHome };

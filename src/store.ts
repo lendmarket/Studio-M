@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Asset, Clip, Project } from './core/types';
+import type { WsSettings } from '../electron/preload';
 import {
   clipEnd,
   clipFromAsset,
@@ -16,6 +17,8 @@ import {
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 
+export type View = 'home' | 'editor';
+export type HomePage = 'home' | 'projects' | 'templates' | 'uploads' | 'settings';
 export type LeftTab = 'media' | 'audio' | 'text' | 'sticker' | 'transition' | 'filter';
 
 interface State {
@@ -33,6 +36,11 @@ interface State {
   clipboard: Clip | null;
   toast: string | null;
   exportOpen: boolean;
+  view: View;
+  homePage: HomePage;
+  settings: WsSettings | null;
+  safeZone: boolean;
+  newProjectOpen: string | null; // 선택된 플랫폼 id
 
   /** 변경 전 스냅샷 저장 (드래그 시작 시 1회) */
   checkpoint: () => void;
@@ -82,6 +90,11 @@ export const useStore = create<State>((set, get) => ({
   clipboard: null,
   toast: null,
   exportOpen: false,
+  view: 'home',
+  homePage: 'home',
+  settings: null,
+  safeZone: true,
+  newProjectOpen: null,
 
   checkpoint: () => {
     const { project, past } = get();

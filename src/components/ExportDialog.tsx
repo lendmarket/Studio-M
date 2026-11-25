@@ -47,7 +47,9 @@ export default function ExportDialog() {
 
   const start = async () => {
     if (duration <= 0) return setError('타임라인이 비어 있습니다.'), setPhase('error');
-    const out = await api.saveDialog(`${name}.mp4`, [{ name: 'MP4 동영상', extensions: ['mp4'] }]);
+    const fp = useStore.getState().filePath;
+    const def = fp ? fp.replace(/[\\/][^\\/]*$/, '') + (fp.includes('\\') ? '\\exports\\' : '/exports/') + `${name}.mp4` : `${name}.mp4`;
+    const out = await api.saveDialog(def, [{ name: 'MP4 동영상', extensions: ['mp4'] }]);
     if (!out) return;
     setOutPath(out);
     setPhase('running');

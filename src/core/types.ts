@@ -107,6 +107,8 @@ export interface Clip {
 export interface Project {
   version: 1;
   name: string;
+  platform?: string; // platforms.ts의 id
+  createdAt?: number;
   width: number;
   height: number;
   fps: number;

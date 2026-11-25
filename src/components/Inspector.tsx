@@ -5,6 +5,7 @@ import { ANIM_LABELS, TRANSITION_LABELS } from '../core/anim';
 import { FILTER_PRESETS, NEUTRAL_ADJUST } from '../core/color';
 import { FONT_LIST } from '../core/text';
 import { ASPECTS, mainTrack, maxTransition } from '../core/project';
+import { PLATFORMS } from '../core/platforms';
 import { Icon } from './Icons';
 
 type Tab = 'basic' | 'text' | 'audio' | 'speed' | 'anim' | 'adjust' | 'project';
@@ -160,6 +161,29 @@ function ProjectTab({ p }: { p: Project }) {
           <input className="text-input" value={p.name} onChange={(e) => useStore.getState().mutate((x) => (x.name = e.target.value))} />
         </div>
         <div className="row">
+          <label>플랫폼</label>
+          <select
+            value={p.platform || 'custom'}
+            onChange={(e) => {
+              const pf = PLATFORMS.find((x) => x.id === e.target.value);
+              set((x) => {
+                x.platform = e.target.value;
+                if (pf) {
+                  x.width = pf.w;
+                  x.height = pf.h;
+                }
+              });
+            }}
+          >
+            {PLATFORMS.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name} ({x.desc.split(' · ')[0]})
+              </option>
+            ))}
+            <option value="custom">사용자 지정</option>
+          </select>
+        </div>
+        <div className="row">
           <label>화면 비율</label>
           <select
             value={ASPECTS.find((a) => a.w === p.width && a.h === p.height)?.id || ''}
@@ -168,6 +192,8 @@ function ProjectTab({ p }: { p: Project }) {
               set((x) => {
                 x.width = a.w;
                 x.height = a.h;
+                const cur = PLATFORMS.find((q) => q.id === x.platform);
+                if (!cur || cur.w * a.h !== cur.h * a.w) x.platform = 'custom';
               });
             }}
           >

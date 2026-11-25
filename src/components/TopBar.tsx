@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { Icon } from './Icons';
-import { newProjectAction, openProjectFile, saveProject } from '../projectIO';
+import { goHome, openProjectFile, saveProject } from '../projectIO';
+import { platformById } from '../core/platforms';
 import { api } from '../api';
 
 export function Logo({ size = 22 }: { size?: number }) {
@@ -11,6 +12,9 @@ export function Logo({ size = 22 }: { size?: number }) {
 export default function TopBar() {
   const name = useStore((s) => s.project.name);
   const dirty = useStore((s) => s.dirty);
+  const view = useStore((s) => s.view);
+  const platform = useStore((s) => s.project.platform);
+  const pf = platformById(platform);
   const [menu, setMenu] = useState(false);
   const [version, setVersion] = useState('');
   const [safe, setSafe] = useState(false);
@@ -49,10 +53,11 @@ export default function TopBar() {
         </button>
         {menu && (
           <div className="menu">
-            {item('새 프로젝트', '', newProjectAction)}
+            {item('홈', '', () => goHome())}
+            {item('새 프로젝트', '', () => useStore.getState().set({ newProjectOpen: 'shorts' }))}
             {item('프로젝트 열기', 'Ctrl+O', () => openProjectFile())}
-            {item('저장', 'Ctrl+S', () => saveProject())}
-            {item('다른 이름으로 저장', 'Ctrl+Shift+S', () => saveProject(true))}
+            {view === 'editor' && item('저장', 'Ctrl+S', () => saveProject())}
+            {view === 'editor' && item('다른 이름으로 저장', 'Ctrl+Shift+S', () => saveProject({ saveAs: true }))}
             <div className="menu-sep" />
             {item('업데이트 확인', '', () => api.checkUpdate())}
             {item('로그 폴더 열기', '', () => api.openLogs())}
@@ -62,20 +67,40 @@ export default function TopBar() {
             <div className="menu-foot">Studio M v{version}{safe ? ' · 안전 모드' : ''}</div>
           </div>
         )}
+        {view === 'editor' && (
+          <button className="home-btn" onClick={() => goHome()} title="홈으로">
+            <Icon name="home" size={15} /> 홈
+          </button>
+        )}
       </div>
+      {view === 'home' ? (
+        <div className="title">
+          <span className="home-title">대시보드</span>
+        </div>
+      ) : (
       <div className="title">
+        <span className="pf-badge top" style={{ background: pf.color }}>
+          {pf.short}
+        </span>
         <input
           className="project-name no-drag"
           value={name}
           onChange={(e) => useStore.getState().mutate((p) => (p.name = e.target.value))}
           spellCheck={false}
         />
-        {dirty && <span className="dirty-dot" title="저장되지 않음" />}
+        <span className={'save-state' + (dirty ? ' dirty' : '')}>{dirty ? '저장 중...' : '저장됨'}</span>
       </div>
+      )}
       <div className="top-actions no-drag">
+        {view === 'home' ? (
+          <button className="btn-export" onClick={() => useStore.getState().set({ newProjectOpen: 'shorts' })}>
+            <Icon name="plus" size={16} /> 새 프로젝트
+          </button>
+        ) : (
         <button className="btn-export" onClick={() => useStore.getState().set({ exportOpen: true, playing: false })}>
           <Icon name="export" size={16} /> 내보내기
         </button>
+        )}
       </div>
     </div>
   );

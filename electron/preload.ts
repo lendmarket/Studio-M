@@ -1,4 +1,8 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
+import type { ExportInfo, ProjectInfo, Settings } from './workspace';
+
+export type { ExportInfo, ProjectInfo };
+export type WsSettings = Settings & { googleDrive: string | null; onDrive: boolean };
 
 const on = (ch: string) => (cb: (...a: any[]) => void) => {
   const h = (_e: unknown, ...a: any[]) => cb(...a);
@@ -37,6 +41,16 @@ const api = {
   onUpdateStatus: on('update:status'),
   pathForFile: (f: File): string => webUtils.getPathForFile(f),
   ready: () => ipcRenderer.send('app:ready'),
+  wsSettings: (): Promise<WsSettings> => ipcRenderer.invoke('ws:settings'),
+  wsSaveSettings: (patch: Partial<WsSettings>): Promise<WsSettings> => ipcRenderer.invoke('ws:saveSettings', patch),
+  wsChooseFolder: (): Promise<string | null> => ipcRenderer.invoke('ws:chooseFolder'),
+  wsCreateProject: (name: string): Promise<string> => ipcRenderer.invoke('ws:createProject', name),
+  wsCopyMedia: (projectFile: string, src: string): Promise<string> => ipcRenderer.invoke('ws:copyMedia', projectFile, src),
+  wsProjects: (): Promise<ProjectInfo[]> => ipcRenderer.invoke('ws:projects'),
+  wsExports: (): Promise<ExportInfo[]> => ipcRenderer.invoke('ws:exports'),
+  wsTrash: (file: string): Promise<void> => ipcRenderer.invoke('ws:trash', file),
+  wsWriteDataUrl: (file: string, data: string): Promise<void> => ipcRenderer.invoke('ws:writeDataUrl', file, data),
+  openPath: (p: string) => ipcRenderer.invoke('ws:openPath', p),
   openLogs: () => ipcRenderer.invoke('app:openLogs'),
   isSafeMode: (): Promise<boolean> => ipcRenderer.invoke('app:safeMode'),
   setSafeMode: (on: boolean) => ipcRenderer.invoke('app:setSafeMode', on),

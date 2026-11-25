@@ -4,6 +4,7 @@ import { PreviewEngine } from '../engine/preview';
 import { ASPECTS, formatTime, projectDuration } from '../core/project';
 import { clipBox, pointInBox, Box } from '../core/geometry';
 import { Icon } from './Icons';
+import { limitFor, platformById } from '../core/platforms';
 
 export default function Player() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -16,7 +17,35 @@ export default function Player() {
   const currentTime = useStore((s) => s.currentTime);
   const selectedId = useStore((s) => s.selectedId);
   const [ratioOpen, setRatioOpen] = useState(false);
+  const safeOn = useStore((s) => s.safeZone);
+  const limits = useStore((s) => s.settings?.limits);
   const duration = projectDuration(project);
+  const pf = platformById(project.platform);
+  const sizeMatches = pf.w * project.height === pf.h * project.width;
+  const limit = sizeMatches ? limitFor(project.platform, limits || {}) : null;
+  const over = limit !== null && duration > limit;
+  const safe = sizeMatches ? pf.safe : null;
+
+  // 프로젝트 썸네일용 프레임 캡처
+  useEffect(() => {
+    (window as any).__studioThumb = () => {
+      const c = canvasRef.current;
+      if (!c) return null;
+      const t = document.createElement('canvas');
+      const w = 360;
+      t.width = w;
+      t.height = Math.round((c.height / c.width) * w);
+      t.getContext('2d')!.drawImage(c, 0, 0, t.width, t.height);
+      try {
+        return t.toDataURL('image/jpeg', 0.8);
+      } catch {
+        return null;
+      }
+    };
+    return () => {
+      (window as any).__studioThumb = undefined;
+    };
+  }, []);
 
   // 화면 크기에 맞춘 캔버스 크기
   useEffect(() => {
@@ -177,6 +206,19 @@ export default function Player() {
       <div className="stage" ref={stageRef} onPointerDown={onStageDown}>
         <div className="canvas-wrap" style={{ width: size.w, height: size.h }}>
           <canvas ref={canvasRef} width={cw} height={ch} style={{ width: size.w, height: size.h }} />
+          {safe && safeOn && (
+            <div className="safe-zone" style={{ ['--pc' as any]: pf.color }}>
+              <div className="sz top" style={{ height: `${safe.top * 100}%` }}>{safe.labels?.top}</div>
+              <div className="sz bottom" style={{ height: `${safe.bottom * 100}%` }}>{safe.labels?.bottom}</div>
+              <div className="sz right" style={{ top: `${safe.top * 100}%`, bottom: `${safe.bottom * 100}%`, width: `${safe.right * 100}%` }}>
+                {safe.labels?.right && <span>{safe.labels.right}</span>}
+              </div>
+              <div
+                className="sz-safe"
+                style={{ top: `${safe.top * 100}%`, bottom: `${safe.bottom * 100}%`, left: `${safe.left * 100}%`, right: `${safe.right * 100}%` }}
+              />
+            </div>
+          )}
           {box && sel && (
             <div
               className="sel-box"
@@ -204,11 +246,21 @@ export default function Player() {
           <span className="tc-cur">{formatTime(currentTime, project.fps)}</span>
           <span className="tc-sep">/</span>
           <span className="tc-dur">{formatTime(duration, project.fps)}</span>
+          {over && (
+            <span className="limit-warn" title={`${pf.name} 최대 길이를 넘었습니다`}>
+              ⚠ {pf.short} 최대 {formatTime(limit!, 30, false).replace(/^00:/, '')} 초과
+            </span>
+          )}
         </div>
         <button className="play-btn" onClick={togglePlay} title="재생/일시정지 (Space)">
           <Icon name={playing ? 'pause' : 'play'} size={18} />
         </button>
         <div className="player-right">
+          {safe && (
+            <button className={'icon-btn' + (safeOn ? ' on' : '')} title="세이프존 가이드 (플랫폼 UI에 가려지는 영역)" onClick={() => useStore.getState().set({ safeZone: !safeOn })}>
+              <Icon name="safe" size={16} />
+            </button>
+          )}
           <div className="ratio">
             <button className="ratio-btn" onClick={() => setRatioOpen(!ratioOpen)}>
               <Icon name="ratio" size={15} /> {aspect ? aspect.id : `${project.width}×${project.height}`}
@@ -224,6 +276,8 @@ export default function Player() {
                       useStore.getState().apply((p) => {
                         p.width = a.w;
                         p.height = a.h;
+                        const cur = platformById(p.platform);
+                        if (cur.w * a.h !== cur.h * a.w) p.platform = 'custom';
                       });
                     }}
                   >

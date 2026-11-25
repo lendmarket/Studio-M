@@ -8,7 +8,19 @@ const baseName = (p: string) => p.split(/[\\/]/).pop() || p;
 export async function importFiles(paths: string[]): Promise<Asset[]> {
   const st = useStore.getState();
   const added: Asset[] = [];
-  for (const path of paths) {
+  const { filePath, settings } = useStore.getState();
+  const copy = !!filePath && settings?.copyMedia !== false;
+  if (copy && paths.length) st.showToast(`프로젝트 폴더로 복사 중... (${paths.length}개)`);
+  for (const src of paths) {
+    let path = src;
+    if (copy) {
+      try {
+        path = await api.wsCopyMedia(filePath!, src);
+      } catch (e) {
+        console.error(e);
+        st.showToast(`복사 실패, 원본을 사용합니다: ${baseName(src)}`);
+      }
+    }
     const existing = useStore.getState().project.assets.find((a) => a.path === path);
     if (existing) {
       added.push(existing);
@@ -38,12 +50,6 @@ export function loadAssetExtras(asset: Asset) {
   if (asset.hasAudio && !asset.peaks?.length) {
     api.waveform(asset.path).then((r: any) => r && st.updateAsset(asset.id, { peaks: r.peaks, peaksPerSec: r.perSec })).catch(() => undefined);
   }
-}
-
-/** 저장 시에는 캐시성 데이터(썸네일/파형)를 제외 */
-export function serializeProject(p: Project): string {
-  const lite = { ...p, assets: p.assets.map(({ thumbs, thumbInterval, peaks, peaksPerSec, ...a }) => (a.type === 'image' ? { ...a, thumbs } : a)) };
-  return JSON.stringify(lite, null, 1);
 }
 
 export async function hydrateProject(p: Project) {

@@ -8,12 +8,14 @@ import Inspector from './components/Inspector';
 import Timeline from './components/Timeline';
 import ExportDialog from './components/ExportDialog';
 import UpdateBanner from './components/UpdateBanner';
-import { confirmDiscard, openProjectFile, restoreAutosave, saveProject, startAutosave } from './projectIO';
+import { goHome, handleStartupOpen, openProjectFile, saveProject, startAutosave } from './projectIO';
+import Home, { NewProjectDialog } from './components/Home';
 import { projectDuration } from './core/project';
 
 export default function App() {
   const toast = useStore((s) => s.toast);
   const exportOpen = useStore((s) => s.exportOpen);
+  const view = useStore((s) => s.view);
   const [upperH, setUpperH] = useState<number | null>(null);
 
   const onSplit = (e: React.PointerEvent) => {
@@ -30,13 +32,13 @@ export default function App() {
   };
 
   useEffect(() => {
-    restoreAutosave();
+    api.wsSettings().then((settings) => useStore.getState().set({ settings }));
+    handleStartupOpen();
     startAutosave();
     const offClose = api.onBeforeClose(async () => {
-      if (await confirmDiscard()) {
-        await api.autosave('');
-        api.closeConfirmed();
-      }
+      const st = useStore.getState();
+      if (st.filePath && st.dirty) await saveProject({ silent: true });
+      api.closeConfirmed();
     });
     const offOpen = api.onOpenProject((f: string) => openProjectFile(f));
     return () => {
@@ -50,6 +52,7 @@ export default function App() {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       const st = useStore.getState();
+      if (st.view !== 'editor' || st.exportOpen || st.newProjectOpen) return;
       const ctrl = e.ctrlKey || e.metaKey;
       const fps = st.project.fps;
       if (e.code === 'Space') {
@@ -67,7 +70,7 @@ export default function App() {
         st.splitAtPlayhead();
       } else if (ctrl && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        saveProject(e.shiftKey);
+        saveProject({ saveAs: e.shiftKey });
       } else if (ctrl && e.key.toLowerCase() === 'o') {
         e.preventDefault();
         openProjectFile();
@@ -91,6 +94,7 @@ export default function App() {
       } else if (e.key === 'Home') st.seek(0);
       else if (e.key === 'End') st.seek(projectDuration(st.project));
       else if (e.key === 'Escape') st.select(null);
+      else if (e.key === 'Home' && ctrl) goHome();
       else if ((e.key === '=' || e.key === '+') && ctrl) {
         e.preventDefault();
         st.setZoom(st.zoom * 1.25);
@@ -106,6 +110,9 @@ export default function App() {
   return (
     <div className="app">
       <TopBar />
+      {view === 'home' ? (
+        <Home />
+      ) : (
       <div className="workspace">
         <div className="upper" style={upperH ? { flex: `0 0 ${upperH}px` } : undefined}>
           <LeftPanel />
@@ -115,6 +122,8 @@ export default function App() {
         <div className="splitter" onPointerDown={onSplit} />
         <Timeline />
       </div>
+      )}
+      <NewProjectDialog />
       {exportOpen && <ExportDialog />}
       <UpdateBanner />
       {toast && <div className="toast">{toast}</div>}
