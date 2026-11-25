@@ -7,10 +7,13 @@ import { formatTime } from '../core/project';
 import { mediaUrl } from '../engine/preview';
 import { createProject, openProjectFile } from '../projectIO';
 import type { ExportInfo, ProjectInfo } from '../../electron/preload';
+import { ProductionsPage } from './Productions';
+import AiSettingsCards from './AiSettings';
 
 const NAV: { id: HomePage; label: string; icon: string; soon?: string }[] = [
   { id: 'home', label: '홈', icon: 'home' },
-  { id: 'projects', label: '프로젝트', icon: 'folder' },
+  { id: 'productions', label: '제작', icon: 'video' },
+  { id: 'projects', label: '편집 프로젝트', icon: 'folder' },
   { id: 'templates', label: '템플릿', icon: 'sparkle', soon: '2단계' },
   { id: 'uploads', label: '업로드', icon: 'export', soon: '5단계' },
   { id: 'settings', label: '설정', icon: 'gear' },
@@ -62,6 +65,7 @@ export default function Home() {
       </nav>
       <main className="home-main">
         {page === 'home' && <Dashboard projects={projects} exports={exports} loading={loading} reload={reload} />}
+        {page === 'productions' && <ProductionsPage />}
         {page === 'projects' && <ProjectsPage projects={projects} reload={reload} />}
         {page === 'templates' && <Soon title="템플릿" text="자막 스타일 · 인트로/아웃트로 · 레이아웃 템플릿이 2단계에서 추가됩니다." />}
         {page === 'uploads' && <Soon title="업로드" text="유튜브 · 인스타그램 · 틱톡 계정 연결과 자동/예약 업로드가 5단계에서 추가됩니다." />}
@@ -124,6 +128,9 @@ function Dashboard({ projects, exports, loading, reload }: { projects: ProjectIn
         <div className="hero-actions">
           <button className="btn-hero" onClick={() => useStore.getState().set({ newProjectOpen: 'shorts' })}>
             <Icon name="plus" size={20} /> 새 프로젝트
+          </button>
+          <button className="btn-sub" onClick={() => useStore.getState().set({ homePage: 'productions', newProductionOpen: 'short' })}>
+            <Icon name="sparkle" size={16} /> 새 작품 (사전 제작)
           </button>
           <button className="btn-sub" onClick={() => openProjectFile()}>
             <Icon name="folder" size={16} /> 프로젝트 열기
@@ -377,6 +384,7 @@ function SettingsPage() {
           가져온 영상·사진·음악을 프로젝트의 media 폴더로 복사 (원본을 옮기거나 지워도 프로젝트가 유지됩니다)
         </label>
       </div>
+      <AiSettingsCards />
       <div className="set-card">
         <h3>플랫폼 길이 제한</h3>
         <p className="muted">플랫폼 정책이 바뀌면 여기서 수정하세요. 비워두면 제한 없음.</p>

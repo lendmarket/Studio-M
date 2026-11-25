@@ -10,6 +10,13 @@ import {
   copyMedia, createProjectFolder, detectGoogleDrive, getSettings, isOnGoogleDrive, listExports, listProjects, saveSettings,
   Settings, trashProject, writeDataUrl,
 } from './workspace';
+import {
+  addEpisode, createProduction, ensureProductionDirs, getProduction, listProductions, readStageFile, trashProduction, updateMeta,
+  writeStageFile,
+} from './production';
+import { clearSecret, secretStatus, setSecret, testConnection } from './ai';
+import type { SecretName } from '../src/core/ai';
+import type { NewProductionInput, StageId, StageState } from '../src/core/production';
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'smedia', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true, bypassCSP: true } },
@@ -222,6 +229,45 @@ ipcMain.handle('ws:exports', () => listExports());
 ipcMain.handle('ws:trash', (_e, file: string) => trashProject(file));
 ipcMain.handle('ws:writeDataUrl', (_e, file: string, data: string) => writeDataUrl(file, data));
 ipcMain.handle('ws:openPath', (_e, p: string) => shell.openPath(p));
+
+// ---------- 사전 제작(작품) ----------
+ipcMain.handle('prod:list', () => {
+  ensureProductionDirs();
+  return listProductions();
+});
+ipcMain.handle('prod:get', (_e, dir: string) => getProduction(dir));
+ipcMain.handle('prod:create', (_e, input: NewProductionInput) => createProduction(input));
+ipcMain.handle('prod:addEpisode', (_e, seriesDir: string) => addEpisode(seriesDir));
+ipcMain.handle('prod:updateMeta', (_e, file: string, patch: { title?: string; budgetUsd?: number | null; stage?: { id: StageId; state: StageState } }) =>
+  updateMeta(file, patch),
+);
+ipcMain.handle('prod:readStage', (_e, unitDir: string, stage: StageId, name: string) => readStageFile(unitDir, stage, name));
+ipcMain.handle('prod:writeStage', (_e, unitDir: string, stage: StageId, name: string, data: unknown) => writeStageFile(unitDir, stage, name, data));
+ipcMain.handle('prod:trash', (_e, dir: string) => trashProduction(dir));
+
+// ---------- AI 연동 (키 값은 화면으로 보내지 않음) ----------
+ipcMain.handle('ai:status', () => secretStatus());
+ipcMain.handle('ai:setSecret', (_e, name: SecretName, value: string) => {
+  setSecret(name, value);
+  return secretStatus();
+});
+ipcMain.handle('ai:clearSecret', (_e, name: SecretName) => {
+  clearSecret(name);
+  return secretStatus();
+});
+ipcMain.handle('ai:pickVertexKey', async () => {
+  const r = await dialog.showOpenDialog(win!, {
+    title: 'Vertex 서비스 계정 키(JSON) 선택',
+    properties: ['openFile'],
+    filters: [{ name: '서비스 계정 키', extensions: ['json'] }],
+  });
+  if (r.canceled || !r.filePaths[0]) return null;
+  setSecret('vertex', fs.readFileSync(r.filePaths[0], 'utf8'));
+  const st = secretStatus();
+  if (st.vertex.projectId && !getSettings().ai.vertexProject) saveSettings({ ai: { ...getSettings().ai, vertexProject: st.vertex.projectId } });
+  return st;
+});
+ipcMain.handle('ai:test', (_e, name: SecretName) => testConnection(name));
 ipcMain.on('app:ready', () => {
   rendererReady = true;
   log('화면 준비 완료', safeMode ? '(안전 모드)' : '');

@@ -17,8 +17,8 @@ import {
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
 
-export type View = 'home' | 'editor';
-export type HomePage = 'home' | 'projects' | 'templates' | 'uploads' | 'settings';
+export type View = 'home' | 'editor' | 'production';
+export type HomePage = 'home' | 'productions' | 'projects' | 'templates' | 'uploads' | 'settings';
 export type LeftTab = 'media' | 'audio' | 'text' | 'sticker' | 'transition' | 'filter';
 
 interface State {
@@ -41,6 +41,11 @@ interface State {
   settings: WsSettings | null;
   safeZone: boolean;
   newProjectOpen: string | null; // 선택된 플랫폼 id
+  /** 사전 제작: 열린 작품 폴더 */
+  prodDir: string | null;
+  /** 사전 제작: 작업 단위 폴더 (단편 = 작품 폴더, 시리즈 = EPxx 폴더) */
+  prodUnit: string | null;
+  newProductionOpen: 'short' | 'series' | null;
 
   /** 변경 전 스냅샷 저장 (드래그 시작 시 1회) */
   checkpoint: () => void;
@@ -95,6 +100,9 @@ export const useStore = create<State>((set, get) => ({
   settings: null,
   safeZone: true,
   newProjectOpen: null,
+  prodDir: null,
+  prodUnit: null,
+  newProductionOpen: null,
 
   checkpoint: () => {
     const { project, past } = get();

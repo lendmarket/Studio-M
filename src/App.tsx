@@ -10,6 +10,7 @@ import ExportDialog from './components/ExportDialog';
 import UpdateBanner from './components/UpdateBanner';
 import { goHome, handleStartupOpen, openProjectFile, saveProject, startAutosave } from './projectIO';
 import Home, { NewProjectDialog } from './components/Home';
+import { NewProductionDialog, ProductionView } from './components/Productions';
 import { projectDuration } from './core/project';
 
 export default function App() {
@@ -112,6 +113,8 @@ export default function App() {
       <TopBar />
       {view === 'home' ? (
         <Home />
+      ) : view === 'production' ? (
+        <ProductionView />
       ) : (
       <div className="workspace">
         <div className="upper" style={upperH ? { flex: `0 0 ${upperH}px` } : undefined}>
@@ -124,6 +127,7 @@ export default function App() {
       </div>
       )}
       <NewProjectDialog />
+      <NewProductionDialog />
       {exportOpen && <ExportDialog />}
       <UpdateBanner />
       {toast && <div className="toast">{toast}</div>}

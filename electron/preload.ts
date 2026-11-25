@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { ExportInfo, ProjectInfo, Settings } from './workspace';
+import type { EpisodeInfo, NewProductionInput, ProductionInfo, StageId, StageState, EpisodeMeta, ProductionMeta } from '../src/core/production';
+import type { SecretName, SecretStatus, TestResult } from '../src/core/ai';
 
 export type { ExportInfo, ProjectInfo };
 export type WsSettings = Settings & { googleDrive: string | null; onDrive: boolean };
@@ -55,6 +57,27 @@ const api = {
   isSafeMode: (): Promise<boolean> => ipcRenderer.invoke('app:safeMode'),
   setSafeMode: (on: boolean) => ipcRenderer.invoke('app:setSafeMode', on),
   platform: process.platform,
+
+  // 사전 제작(작품)
+  prodList: (): Promise<ProductionInfo[]> => ipcRenderer.invoke('prod:list'),
+  prodGet: (dir: string): Promise<ProductionInfo | null> => ipcRenderer.invoke('prod:get', dir),
+  prodCreate: (input: NewProductionInput): Promise<ProductionInfo> => ipcRenderer.invoke('prod:create', input),
+  prodAddEpisode: (seriesDir: string): Promise<EpisodeInfo> => ipcRenderer.invoke('prod:addEpisode', seriesDir),
+  prodUpdateMeta: (
+    file: string,
+    patch: { title?: string; budgetUsd?: number | null; stage?: { id: StageId; state: StageState } },
+  ): Promise<ProductionMeta & EpisodeMeta> => ipcRenderer.invoke('prod:updateMeta', file, patch),
+  prodReadStage: (unitDir: string, stage: StageId, name: string): Promise<unknown | null> => ipcRenderer.invoke('prod:readStage', unitDir, stage, name),
+  prodWriteStage: (unitDir: string, stage: StageId, name: string, data: unknown): Promise<void> =>
+    ipcRenderer.invoke('prod:writeStage', unitDir, stage, name, data),
+  prodTrash: (dir: string): Promise<void> => ipcRenderer.invoke('prod:trash', dir),
+
+  // AI 연동 — 키 값은 보내기만 하고 다시 읽어 오지 않습니다
+  aiStatus: (): Promise<SecretStatus> => ipcRenderer.invoke('ai:status'),
+  aiSetSecret: (name: SecretName, value: string): Promise<SecretStatus> => ipcRenderer.invoke('ai:setSecret', name, value),
+  aiClearSecret: (name: SecretName): Promise<SecretStatus> => ipcRenderer.invoke('ai:clearSecret', name),
+  aiPickVertexKey: (): Promise<SecretStatus | null> => ipcRenderer.invoke('ai:pickVertexKey'),
+  aiTest: (name: SecretName): Promise<TestResult> => ipcRenderer.invoke('ai:test', name),
 };
 
 contextBridge.exposeInMainWorld('api', api);

@@ -55,6 +55,10 @@ export default function TopBar() {
           <div className="menu">
             {item('홈', '', () => goHome())}
             {item('새 프로젝트', '', () => useStore.getState().set({ newProjectOpen: 'shorts' }))}
+            {item('새 작품 (사전 제작)', '', async () => {
+              await goHome();
+              useStore.getState().set({ homePage: 'productions', newProductionOpen: 'short' });
+            })}
             {item('프로젝트 열기', 'Ctrl+O', () => openProjectFile())}
             {view === 'editor' && item('저장', 'Ctrl+S', () => saveProject())}
             {view === 'editor' && item('다른 이름으로 저장', 'Ctrl+Shift+S', () => saveProject({ saveAs: true }))}
@@ -72,10 +76,19 @@ export default function TopBar() {
             <Icon name="home" size={15} /> 홈
           </button>
         )}
+        {view === 'production' && (
+          <button className="home-btn" onClick={() => useStore.getState().set({ view: 'home', homePage: 'productions' })} title="작품 목록으로">
+            <Icon name="home" size={15} /> 제작 목록
+          </button>
+        )}
       </div>
       {view === 'home' ? (
         <div className="title">
           <span className="home-title">대시보드</span>
+        </div>
+      ) : view === 'production' ? (
+        <div className="title">
+          <span className="home-title">사전 제작</span>
         </div>
       ) : (
       <div className="title">
@@ -92,7 +105,7 @@ export default function TopBar() {
       </div>
       )}
       <div className="top-actions no-drag">
-        {view === 'home' ? (
+        {view === 'production' ? null : view === 'home' ? (
           <button className="btn-export" onClick={() => useStore.getState().set({ newProjectOpen: 'shorts' })}>
             <Icon name="plus" size={16} /> 새 프로젝트
           </button>

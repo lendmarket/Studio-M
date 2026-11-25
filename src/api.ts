@@ -1,4 +1,5 @@
 import type { Api } from '../electron/preload';
+import { DEFAULT_AI } from './core/ai';
 
 declare global {
   interface Window {
@@ -38,8 +39,8 @@ if (!(window as any).api) {
     onUpdateStatus: off,
     pathForFile: () => '',
     ready: () => undefined,
-    wsSettings: async () => ({ workspace: 'C:\\Users\\me\\Documents\\Studio M', copyMedia: true, limits: {}, googleDrive: null, onDrive: false }),
-    wsSaveSettings: async (p: any) => ({ workspace: '', copyMedia: true, limits: {}, googleDrive: null, onDrive: false, ...p }),
+    wsSettings: async () => ({ workspace: 'C:\\Users\\me\\Documents\\Studio M', copyMedia: true, limits: {}, ai: DEFAULT_AI, googleDrive: null, onDrive: false }),
+    wsSaveSettings: async (p: any) => ({ workspace: '', copyMedia: true, limits: {}, ai: DEFAULT_AI, googleDrive: null, onDrive: false, ...p }),
     wsChooseFolder: noop,
     wsCreateProject: async (n: string) => `C:\\Studio M\\${n}\\${n}.smproj`,
     wsCopyMedia: async (_f: string, s: string) => s,
@@ -52,6 +53,23 @@ if (!(window as any).api) {
     isSafeMode: async () => false,
     setSafeMode: noop,
     platform: 'browser',
+    prodList: async () => [],
+    prodGet: noop,
+    prodCreate: async () => {
+      throw new Error('브라우저 미리보기에서는 작품을 만들 수 없습니다');
+    },
+    prodAddEpisode: noop,
+    prodUpdateMeta: noop,
+    prodReadStage: noop,
+    prodWriteStage: noop,
+    prodTrash: noop,
+    aiStatus: async () => ({ encryption: false, gemini: false, vertex: { set: false }, typecast: false, fish: false }),
+    aiSetSecret: async () => {
+      throw new Error('브라우저 미리보기에서는 키를 저장할 수 없습니다');
+    },
+    aiClearSecret: async () => ({ encryption: false, gemini: false, vertex: { set: false }, typecast: false, fish: false }),
+    aiPickVertexKey: noop,
+    aiTest: async () => ({ ok: false, message: '브라우저 미리보기' }),
   };
 }
 

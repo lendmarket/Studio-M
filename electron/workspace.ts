@@ -1,11 +1,14 @@
 import { app, shell } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import { AiSettings, withAiDefaults } from '../src/core/ai';
 
 export interface Settings {
   workspace: string;
   copyMedia: boolean;
   limits: Record<string, number | null>;
+  /** AI 연동 설정 (키 제외 — 키는 ai.ts에서 암호화 저장) */
+  ai: AiSettings;
 }
 
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
@@ -46,13 +49,14 @@ export function getSettings(): Settings {
   } catch {
     /* 첫 실행 */
   }
-  cached = { workspace: s.workspace || defaultWorkspace(), copyMedia: s.copyMedia ?? true, limits: s.limits || {} };
+  cached = { workspace: s.workspace || defaultWorkspace(), copyMedia: s.copyMedia ?? true, limits: s.limits || {}, ai: withAiDefaults(s.ai) };
   if (!s.workspace) saveSettings(cached);
   return cached;
 }
 
 export function saveSettings(patch: Partial<Settings>) {
-  cached = { ...getSettings(), ...patch };
+  const cur = getSettings();
+  cached = { ...cur, ...patch, ai: patch.ai ? withAiDefaults({ ...cur.ai, ...patch.ai }) : cur.ai };
   fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
   fs.writeFileSync(settingsFile(), JSON.stringify(cached, null, 2));
   return cached;
@@ -63,9 +67,9 @@ export function isOnGoogleDrive(p: string) {
   return !!g && path.resolve(p).toLowerCase().startsWith(path.resolve(g).toLowerCase());
 }
 
-const safeName = (n: string) => n.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+$/, '').slice(0, 80) || '프로젝트';
+export const safeName = (n: string) => n.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+$/, '').slice(0, 80) || '프로젝트';
 
-function uniquePath(dir: string, base: string, ext = '') {
+export function uniquePath(dir: string, base: string, ext = '') {
   let p = path.join(dir, base + ext);
   for (let i = 2; fs.existsSync(p); i++) p = path.join(dir, `${base} (${i})${ext}`);
   return p;
