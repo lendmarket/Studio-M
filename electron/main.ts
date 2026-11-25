@@ -11,6 +11,48 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'smedia', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true, bypassCSP: true } },
 ]);
 
+// ---------- 로그 & 안전 모드 (GPU 차단 대비) ----------
+const userData = app.getPath('userData');
+const logFile = path.join(userData, 'studio-m.log');
+function log(...a: unknown[]) {
+  try {
+    fs.mkdirSync(userData, { recursive: true });
+    fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${a.map((x) => (x instanceof Error ? x.stack : String(x))).join(' ')}\n`);
+  } catch {
+    /* ignore */
+  }
+}
+const safeFlag = path.join(userData, 'safe-mode');
+const safeMode = fs.existsSync(safeFlag) || process.argv.includes('--safe-mode');
+if (safeMode) {
+  app.disableHardwareAcceleration();
+  log('안전 모드: GPU 가속 끔');
+}
+function enterSafeMode(reason: string) {
+  log('안전 모드로 재시작:', reason);
+  if (safeMode) {
+    dialog.showErrorBox(
+      'Studio M',
+      `화면을 표시하지 못했습니다.\n\n원인: ${reason}\n\n로그 파일: ${logFile}\n이 파일을 개발자에게 보내주세요.`,
+    );
+    return;
+  }
+  try {
+    fs.writeFileSync(safeFlag, reason);
+  } catch {
+    /* ignore */
+  }
+  app.relaunch();
+  app.exit(0);
+}
+process.on('uncaughtException', (e) => log('uncaughtException', e));
+app.on('child-process-gone', (_e, d) => {
+  log('child-process-gone', d.type, d.reason, d.exitCode);
+  if (d.type === 'GPU' && d.reason !== 'clean-exit') enterSafeMode(`GPU 프로세스 종료 (${d.reason})`);
+});
+log('시작', app.getVersion(), process.platform, process.arch, process.getSystemVersion?.());
+
+let rendererReady = false;
 let win: BrowserWindow | null = null;
 let exportProc: ChildProcess | null = null;
 let pendingOpen: string | null = process.argv.find((a) => a.toLowerCase().endsWith('.smproj')) || null;
@@ -80,13 +122,31 @@ function createWindow() {
     },
   });
   Menu.setApplicationMenu(null);
-  win.once('ready-to-show', () => {
-    win?.maximize();
-    win?.show();
+  const showWin = () => {
+    if (win && !win.isVisible()) {
+      win.maximize();
+      win.show();
+    }
+  };
+  win.once('ready-to-show', showWin);
+  setTimeout(showWin, 5000);
+  const wc = win.webContents;
+  wc.on('console-message', (_e, level, message, line, source) => {
+    if (level >= 2) log('renderer', level === 3 ? 'ERROR' : 'WARN', message, `${source}:${line}`);
+  });
+  wc.on('did-fail-load', (_e, code, desc, url) => log('did-fail-load', code, desc, url));
+  wc.on('render-process-gone', (_e, d) => {
+    log('render-process-gone', d.reason, d.exitCode);
+    if (d.reason !== 'clean-exit') enterSafeMode(`화면 프로세스 종료 (${d.reason})`);
+  });
+  wc.on('did-finish-load', () => {
+    setTimeout(() => {
+      if (!rendererReady) enterSafeMode('화면이 10초 안에 준비되지 않음');
+    }, 10000);
   });
   const dev = process.env.VITE_DEV_SERVER_URL;
   if (dev) win.loadURL(dev);
-  else win.loadFile(path.join(__dirname, '../dist/index.html'));
+  else win.loadFile(path.join(__dirname, '../dist/index.html')).catch((e) => log('loadFile 실패', e));
   win.webContents.on('before-input-event', (_e, input) => {
     if (input.key === 'F12' && input.type === 'keyDown') win?.webContents.toggleDevTools();
   });
@@ -142,6 +202,18 @@ ipcMain.handle('app:pendingOpen', () => {
   return p;
 });
 ipcMain.handle('app:version', () => app.getVersion());
+ipcMain.on('app:ready', () => {
+  rendererReady = true;
+  log('화면 준비 완료', safeMode ? '(안전 모드)' : '');
+});
+ipcMain.handle('app:openLogs', () => shell.showItemInFolder(logFile));
+ipcMain.handle('app:safeMode', () => safeMode);
+ipcMain.handle('app:setSafeMode', (_e, on: boolean) => {
+  if (on) fs.writeFileSync(safeFlag, 'user');
+  else fs.rmSync(safeFlag, { force: true });
+  app.relaunch();
+  app.exit(0);
+});
 ipcMain.handle('app:reveal', (_e, f: string) => shell.showItemInFolder(f));
 ipcMain.handle('app:openExternal', (_e, url: string) => {
   if (/^https:\/\//.test(url)) shell.openExternal(url);
@@ -209,7 +281,10 @@ function setupUpdater() {
   autoUpdater.on('update-not-available', () => send({ state: 'none' }));
   autoUpdater.on('download-progress', (p) => send({ state: 'downloading', percent: p.percent }));
   autoUpdater.on('update-downloaded', (i) => send({ state: 'ready', version: i.version }));
-  autoUpdater.on('error', (e) => send({ state: 'error', message: String(e?.message || e) }));
+  autoUpdater.on('error', (e) => {
+    log('update error', e);
+    send({ state: 'error', message: String(e?.message || e) });
+  });
   ipcMain.handle('update:check', () => (app.isPackaged ? autoUpdater.checkForUpdates().catch(() => null) : send({ state: 'dev' })));
   ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
   if (app.isPackaged) setTimeout(() => autoUpdater.checkForUpdates().catch(() => undefined), 4000);

@@ -36,6 +36,10 @@ const api = {
   installUpdate: () => ipcRenderer.invoke('update:install'),
   onUpdateStatus: on('update:status'),
   pathForFile: (f: File): string => webUtils.getPathForFile(f),
+  ready: () => ipcRenderer.send('app:ready'),
+  openLogs: () => ipcRenderer.invoke('app:openLogs'),
+  isSafeMode: (): Promise<boolean> => ipcRenderer.invoke('app:safeMode'),
+  setSafeMode: (on: boolean) => ipcRenderer.invoke('app:setSafeMode', on),
   platform: process.platform,
 };
 

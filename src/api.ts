@@ -37,6 +37,10 @@ if (!(window as any).api) {
     installUpdate: noop,
     onUpdateStatus: off,
     pathForFile: () => '',
+    ready: () => undefined,
+    openLogs: noop,
+    isSafeMode: async () => false,
+    setSafeMode: noop,
     platform: 'browser',
   };
 }
