@@ -1,0 +1,41 @@
+appId: com.lendmarket.studiom
+productName: Studio M
+copyright: Copyright © 2026 lendmarket
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+  - "!node_modules/ffprobe-static/bin/darwin/**"
+  - "!node_modules/ffprobe-static/bin/linux/**"
+  - "!node_modules/ffprobe-static/bin/win32/ia32/**"
+asarUnpack:
+  - node_modules/ffmpeg-static/**
+  - node_modules/ffprobe-static/**
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: StudioM-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Studio M
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+fileAssociations:
+  - ext: smproj
+    name: Studio M Project
+    description: Studio M 프로젝트
+    icon: build/icon.ico
+publish:
+  provider: github
+  owner: lendmarket
+  repo: Studio-M
+  releaseType: release
