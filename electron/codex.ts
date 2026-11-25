@@ -25,6 +25,20 @@ interface RunResult {
   stderr: string;
 }
 
+/** codex.cmd는 node가 PATH에 있어야 실행됨 → Node 설치 폴더와 npm 전역 폴더를 PATH 앞에 붙임 */
+function codexEnv() {
+  const env: NodeJS.ProcessEnv = { ...process.env, NO_COLOR: '1' };
+  if (process.platform === 'win32') {
+    const key = Object.keys(env).find((k) => k.toLowerCase() === 'path') || 'Path';
+    const extra = [
+      process.env.ProgramFiles && path.join(process.env.ProgramFiles, 'nodejs'),
+      process.env.APPDATA && path.join(process.env.APPDATA, 'npm'),
+    ].filter((p): p is string => !!p && fs.existsSync(p));
+    env[key] = [...extra, env[key] || ''].join(';');
+  }
+  return env;
+}
+
 function run(args: string[], opts: { input?: string; cwd?: string; timeoutMs?: number } = {}): Promise<RunResult> {
   return new Promise((resolve) => {
     const cmd = codexCommand();
@@ -33,7 +47,7 @@ function run(args: string[], opts: { input?: string; cwd?: string; timeoutMs?: n
       cwd: opts.cwd || os.tmpdir(),
       shell: process.platform === 'win32',
       windowsHide: true,
-      env: { ...process.env, NO_COLOR: '1' },
+      env: codexEnv(),
     });
     let stdout = '';
     let stderr = '';
@@ -86,7 +100,13 @@ export async function codexAsk(prompt: string, model: string): Promise<{ text: s
     const r = await run(args, { input: prompt, cwd: dir, timeoutMs: 5 * 60 * 1000 });
     const text = fs.existsSync(outFile) ? fs.readFileSync(outFile, 'utf8') : '';
     if (!text.trim()) {
-      const tail = (r.stderr || r.stdout).trim().split('\n').slice(-6).join('\n');
+      const all = r.stderr + '\n' + r.stdout;
+      const limit = /usage limit[\s\S]*?try again at ([^\n.]+)/i.exec(all);
+      if (limit || /usage limit/i.test(all)) {
+        throw new Error(`ChatGPT 구독 사용 한도에 도달했습니다.${limit ? ` ${limit[1].trim()} 이후에 다시 쓸 수 있습니다.` : ''} 설정에서 OpenAI API 키나 Gemini로 바꿔 쓸 수 있습니다.`);
+      }
+      if (/not logged in|login/i.test(all) && !/Logged in/i.test(all)) throw new Error('ChatGPT 로그인이 필요합니다 (설정 › AI 연동 › ChatGPT로 로그인)');
+      const tail = all.trim().split('\n').filter((l) => l.trim()).slice(-6).join('\n');
       throw new Error(`Codex 응답이 없습니다${r.code !== 0 ? ` (종료 코드 ${r.code})` : ''}\n${tail}`);
     }
     return { text };
