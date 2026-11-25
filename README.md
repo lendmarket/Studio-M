@@ -44,12 +44,8 @@
 ## 새 버전 배포 (업데이트 내보내기)
 
 1. `package.json`의 `version`을 올립니다. (예: `0.1.0` → `0.2.0`)
-2. 커밋 후 같은 버전의 태그를 push합니다.
-   ```bash
-   git tag v0.2.0
-   git push origin main --tags
-   ```
-3. GitHub Actions(`Release (Windows)`)가 Windows 설치 파일을 빌드해서 Releases에 올립니다.
+2. 커밋해서 main에 push합니다.
+3. GitHub Actions(`Release (Windows)`)가 Windows 설치 파일을 빌드해서 Releases(`v0.2.0`)에 올립니다. 이미 릴리스된 버전이면 건너뜁니다.
 4. 지인들의 PC에 설치된 Studio M이 다음 실행 때 자동으로 업데이트를 받습니다.
 
 ## 개발
