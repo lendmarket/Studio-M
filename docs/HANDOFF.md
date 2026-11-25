@@ -2,6 +2,7 @@
 
 > 새 세션·다른 PC에서 이어서 작업할 때 이 문서부터 읽으세요.
 > 설계: [preproduction-design.md](preproduction-design.md) · 편집기 기능 결정: [editor-feature-decisions.md](editor-feature-decisions.md)
+> 참고 도구(TB Drama) 전체 분석 원본: `docs/private/TB_Drama_기능분석.md` — 개인 작품 이름이 있어 **이 PC에만 보관**(.gitignore, GitHub에 없음)
 
 - 브랜치: `feature/preproduction-foundation` (main에는 아직 합치지 않음 — main push + 버전 변경 시 자동 릴리스됨)
 - 마지막 갱신: 2026-11-25
