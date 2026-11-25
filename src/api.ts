@@ -63,11 +63,17 @@ if (!(window as any).api) {
     prodReadStage: noop,
     prodWriteStage: noop,
     prodTrash: noop,
-    aiStatus: async () => ({ encryption: false, gemini: false, vertex: { set: false }, typecast: false, fish: false }),
+    prodSeriesContext: async () => ({ seriesTitle: '', episodes: [], openForeshadowing: [] }),
+    prodRebuildArc: noop,
+    prodImportInputs: async () => [],
+    llmChat: async () => ({ ok: false, error: '브라우저 미리보기에서는 AI를 부를 수 없습니다', provider: '', model: '', ms: 0 }),
+    codexStatus: async () => ({ installed: false, loggedIn: false, detail: '브라우저 미리보기' }),
+    codexLogin: async () => ({ ok: false, message: '브라우저 미리보기' }),
+    aiStatus: async () => ({ encryption: false, gemini: false, openai: false, vertex: { set: false }, typecast: false, fish: false }),
     aiSetSecret: async () => {
       throw new Error('브라우저 미리보기에서는 키를 저장할 수 없습니다');
     },
-    aiClearSecret: async () => ({ encryption: false, gemini: false, vertex: { set: false }, typecast: false, fish: false }),
+    aiClearSecret: async () => ({ encryption: false, gemini: false, openai: false, vertex: { set: false }, typecast: false, fish: false }),
     aiPickVertexKey: noop,
     aiTest: async () => ({ ok: false, message: '브라우저 미리보기' }),
   };

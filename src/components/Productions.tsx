@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { api } from '../api';
 import { Icon } from './Icons';
+import StoryStage from './StoryStage';
 import {
   ASPECTS, aspectById, EpisodeInfo, LENGTH_PRESETS, ProductionInfo, ProductionKind, progressOf, SERIES_DIRS, STAGE_STATUS_LABEL, STAGES,
   StageId, Stages,
@@ -387,6 +388,9 @@ export function ProductionView() {
           })}
         </div>
 
+        {stage === 'story' && unitDir && unitFile && stages ? (
+          <StoryStage key={unitDir} info={info} ep={ep} unitDir={unitDir} unitFile={unitFile} stages={stages} reload={reload} />
+        ) : (
         <section className="stage-panel">
           <div className="stage-head">
             <div>
@@ -416,6 +420,7 @@ export function ProductionView() {
             </button>
           </div>
         </section>
+        )}
       </main>
     </div>
   );

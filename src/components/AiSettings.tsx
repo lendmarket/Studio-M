@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { api } from '../api';
 import { Icon } from './Icons';
-import { AiSettings, DEFAULT_AI, PRICE_UNIT_LABEL, SecretName, SecretStatus, TestResult, withAiDefaults } from '../core/ai';
+import {
+  AiSettings, CodexStatus, DEFAULT_AI, PRICE_UNIT_LABEL, SecretName, SecretStatus, TestResult, TEXT_PROVIDER_LABEL, withAiDefaults,
+} from '../core/ai';
 
 const MODEL_ROWS: { key: keyof AiSettings['models']; label: string; hint: string }[] = [
-  { key: 'text', label: '텍스트', hint: 'S1 스토리 대화 · S2 바이블 추출 · S4 프롬프트·검수 · 업로드 정보' },
+  { key: 'codex', label: 'ChatGPT 구독', hint: 'Codex 모델 이름 · 비우면 Codex 기본 모델' },
+  { key: 'openai', label: 'OpenAI API', hint: 'API 키 방식일 때 텍스트 모델' },
+  { key: 'text', label: 'Gemini 텍스트', hint: 'Gemini를 텍스트 AI로 쓸 때' },
   { key: 'image', label: '이미지', hint: '기준 시트 · 씬 마스터 · 컷 시작 이미지' },
   { key: 'video', label: '영상', hint: '컷 영상 (Veo · Omni)' },
   { key: 'tts', label: '음성', hint: 'Gemini TTS (타입캐스트는 인물별로 지정)' },
@@ -30,6 +34,44 @@ export default function AiSettingsCards() {
           키는 이 PC에만 Windows 암호화로 저장되고 화면에는 저장 여부만 표시됩니다. 연결 테스트는 생성 요청이 아니라 요금이 나가지 않는 확인 요청만 보냅니다.
         </p>
         {st && !st.encryption && <div className="notice warn">이 PC에서 암호화 저장을 쓸 수 없어 키를 저장할 수 없습니다.</div>}
+
+        <div className="key-row">
+          <span className="key-label">텍스트 AI</span>
+          <div className="seg">
+            {(['chatgpt', 'gemini'] as const).map((m) => (
+              <button key={m} className={ai.textProvider === m ? 'on' : ''} onClick={() => saveAi({ textProvider: m })}>
+                {TEXT_PROVIDER_LABEL[m]}
+              </button>
+            ))}
+          </div>
+          <small className="muted">스토리 대화 · 바이블 추출 · 프롬프트 생성 · 검수에 씁니다</small>
+        </div>
+
+        <div className="ai-block">
+          <div className="ai-head">
+            <b>ChatGPT {ai.textProvider === 'chatgpt' && <span className="key-state ok">사용 중</span>}</b>
+            <div className="seg">
+              {(['codex', 'api'] as const).map((m) => (
+                <button key={m} className={ai.chatgptMode === m ? 'on' : ''} onClick={() => saveAi({ chatgptMode: m })}>
+                  {m === 'codex' ? '구독 (Codex 로그인)' : 'OpenAI API 키'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {ai.chatgptMode === 'codex' ? (
+            <CodexRow />
+          ) : (
+            <KeyRow
+              name="openai"
+              label="OpenAI API 키"
+              set={!!st?.openai}
+              placeholder="platform.openai.com에서 만든 API 키"
+              onStatus={setSt}
+              onTest={(r) => r.models && setModels(r.models)}
+              help="ChatGPT 구독과 별도로, 쓴 만큼 청구됩니다"
+            />
+          )}
+        </div>
 
         <div className="ai-block">
           <div className="ai-head">
@@ -117,9 +159,14 @@ export default function AiSettingsCards() {
             <input
               className="text-input"
               list="ai-models"
+              placeholder={r.key === 'codex' ? 'Codex 기본 모델' : ''}
               defaultValue={ai.models[r.key]}
               key={ai.models[r.key]}
-              onBlur={(e) => e.target.value.trim() && saveAi({ models: { ...ai.models, [r.key]: e.target.value.trim() } })}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v === ai.models[r.key] || (!v && r.key !== 'codex')) return;
+                saveAi({ models: { ...ai.models, [r.key]: v } });
+              }}
             />
             <small className="muted">{r.hint}</small>
           </div>
@@ -226,6 +273,49 @@ function KeyRow({
       {set && <ClearBtn name={name} onStatus={onStatus} />}
       {set && <TestBtn name={name} onResult={onTest} />}
       {help && <small className="muted key-help">{help}</small>}
+    </div>
+  );
+}
+
+function CodexRow() {
+  const [cs, setCs] = useState<CodexStatus | null>(null);
+  const [busy, setBusy] = useState('');
+  const check = async () => {
+    setBusy('확인 중...');
+    setCs(await api.codexStatus());
+    setBusy('');
+  };
+  useEffect(() => {
+    check();
+  }, []);
+  return (
+    <div className="key-row">
+      <span className="key-label">ChatGPT 구독</span>
+      <span className={'key-state' + (cs?.loggedIn ? ' ok' : '')}>
+        {busy || (!cs ? '…' : cs.loggedIn ? `로그인됨${cs.version ? ` · Codex ${cs.version}` : ''}` : cs.installed ? '로그인 필요' : 'Codex 미설치')}
+      </span>
+      {cs?.installed && !cs.loggedIn && (
+        <button
+          className="btn primary sm"
+          disabled={!!busy}
+          onClick={async () => {
+            setBusy('브라우저에서 로그인하세요...');
+            const r = await api.codexLogin();
+            if (!r.ok) useStore.getState().showToast('로그인하지 못했습니다: ' + r.message);
+            await check();
+          }}
+        >
+          ChatGPT로 로그인
+        </button>
+      )}
+      <button className="btn ghost sm" disabled={!!busy} onClick={check}>
+        다시 확인
+      </button>
+      <small className="muted key-help">
+        {cs && !cs.installed
+          ? 'PC에 Codex CLI를 설치해야 합니다: 터미널에서 npm i -g @openai/codex 실행 후 「다시 확인」'
+          : '지금 쓰는 ChatGPT Plus·Pro 구독 안에서 추가 요금 없이 씁니다 (구독 사용 한도 적용)'}
+      </small>
     </div>
   );
 }

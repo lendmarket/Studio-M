@@ -87,6 +87,7 @@ export function secretStatus(): SecretStatus {
   return {
     encryption: safeStorage.isEncryptionAvailable(),
     gemini: !!s.gemini,
+    openai: !!s.openai,
     vertex,
     typecast: !!s.typecast,
     fish: !!s.fish,
@@ -137,6 +138,15 @@ export async function testConnection(name: SecretName): Promise<TestResult> {
         if (!pageToken) break;
       }
       return { ok: true, message: `연결됨 · 쓸 수 있는 모델 ${models.length}개`, models: models.sort() };
+    }
+    if (name === 'openai') {
+      const key = getSecret('openai');
+      if (!key) return { ok: false, message: 'OpenAI API 키가 없습니다' };
+      const res = await fetch('https://api.openai.com/v1/models', { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(20000) });
+      const j: any = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, message: j?.error?.message || `연결 실패 (${res.status})` };
+      const models = (j.data || []).map((m: any) => String(m.id)).filter((id: string) => /^(gpt|o\d|chatgpt)/i.test(id)).sort();
+      return { ok: true, message: `연결됨 · 텍스트 모델 ${models.length}개`, models };
     }
     if (name === 'vertex') {
       await vertexAccessToken();

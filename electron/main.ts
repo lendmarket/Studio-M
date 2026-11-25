@@ -11,11 +11,13 @@ import {
   Settings, trashProject, writeDataUrl,
 } from './workspace';
 import {
-  addEpisode, createProduction, ensureProductionDirs, getProduction, listProductions, readStageFile, trashProduction, updateMeta,
-  writeStageFile,
+  addEpisode, createProduction, ensureProductionDirs, getProduction, importInputFiles, listProductions, readStageFile, rebuildArc,
+  seriesContext, trashProduction, updateMeta, writeStageFile,
 } from './production';
 import { clearSecret, secretStatus, setSecret, testConnection } from './ai';
-import type { SecretName } from '../src/core/ai';
+import { codexLogin, codexStatus } from './codex';
+import { llmChat } from './llm';
+import type { LlmRequest, SecretName } from '../src/core/ai';
 import type { NewProductionInput, StageId, StageState } from '../src/core/production';
 
 protocol.registerSchemesAsPrivileged([
@@ -244,6 +246,24 @@ ipcMain.handle('prod:updateMeta', (_e, file: string, patch: { title?: string; bu
 ipcMain.handle('prod:readStage', (_e, unitDir: string, stage: StageId, name: string) => readStageFile(unitDir, stage, name));
 ipcMain.handle('prod:writeStage', (_e, unitDir: string, stage: StageId, name: string, data: unknown) => writeStageFile(unitDir, stage, name, data));
 ipcMain.handle('prod:trash', (_e, dir: string) => trashProduction(dir));
+ipcMain.handle('prod:seriesContext', (_e, seriesDir: string, uptoNo: number) => seriesContext(seriesDir, uptoNo));
+ipcMain.handle('prod:rebuildArc', (_e, seriesDir: string) => rebuildArc(seriesDir));
+ipcMain.handle('prod:importInputs', async (_e, unitDir: string) => {
+  const r = await dialog.showOpenDialog(win!, {
+    title: '참고 자료 (텍스트 파일)',
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: '텍스트', extensions: ['txt', 'md', 'csv', 'tsv', 'json', 'srt', 'vtt', 'html'] }],
+  });
+  return r.canceled ? [] : importInputFiles(unitDir, r.filePaths);
+});
+
+// ---------- 텍스트 AI ----------
+ipcMain.handle('llm:chat', (_e, req: LlmRequest) => llmChat(req));
+ipcMain.handle('codex:status', () => codexStatus());
+ipcMain.handle('codex:login', async () => {
+  const r = await codexLogin();
+  return { ok: r.code === 0, message: (r.stdout + r.stderr).trim().split('\n').slice(-3).join('\n') };
+});
 
 // ---------- AI 연동 (키 값은 화면으로 보내지 않음) ----------
 ipcMain.handle('ai:status', () => secretStatus());

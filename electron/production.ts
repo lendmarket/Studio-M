@@ -181,6 +181,81 @@ export function writeStageFile(unitDir: string, stage: StageId, name: string, da
   writeJson(path.join(unitDir, def.dir, path.basename(name)), data);
 }
 
+// ---------- 시리즈: 이전 화 요약 · 미회수 복선 ----------
+interface StoryDocLite {
+  basic?: { title?: string };
+  structure?: { summary?: string };
+  links?: { foreshadowing?: { clue: string; plantAt: string; payoffAt: string; resolved: boolean }[] };
+}
+
+function readStory(epDir: string): StoryDocLite | null {
+  const f = path.join(epDir, '01_story', 'story.json');
+  try {
+    return fs.existsSync(f) ? readJson<StoryDocLite>(f) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** uptoNo 화 이전의 확정 스토리 요약과 아직 회수하지 않은 복선 */
+export function seriesContext(seriesDir: string, uptoNo: number) {
+  assertInWorkspace(seriesDir);
+  const series = readJson<ProductionMeta>(path.join(seriesDir, SERIES_FILE));
+  const episodes: { no: number; title: string; summary: string }[] = [];
+  const open: { clue: string; plantAt: string; payoffAt: string; resolved: boolean; episode: number }[] = [];
+  for (const e of readEpisodes(seriesDir)) {
+    if (e.meta.no >= uptoNo) continue;
+    const s = readStory(e.dir);
+    if (!s) continue;
+    episodes.push({ no: e.meta.no, title: s.basic?.title || e.meta.title, summary: s.structure?.summary || '' });
+    for (const f of s.links?.foreshadowing || []) if (!f.resolved) open.push({ ...f, episode: e.meta.no });
+  }
+  return { seriesTitle: series.title, episodes, openForeshadowing: open };
+}
+
+/** 시리즈 줄거리·복선 모음(story_arc/arc.json)을 화별 확정 스토리로 다시 만듦 */
+export function rebuildArc(seriesDir: string) {
+  assertInWorkspace(seriesDir);
+  const eps = readEpisodes(seriesDir).map((e) => {
+    const s = readStory(e.dir);
+    return {
+      no: e.meta.no,
+      title: s?.basic?.title || e.meta.title,
+      confirmed: !!s,
+      summary: s?.structure?.summary || '',
+      foreshadowing: s?.links?.foreshadowing || [],
+    };
+  });
+  writeJson(path.join(seriesDir, SERIES_DIRS.arc, 'arc.json'), { updatedAt: Date.now(), episodes: eps });
+}
+
+// ---------- S1 입력 자료: 텍스트 파일 가져오기 ----------
+const TEXT_EXT = /\.(txt|md|csv|tsv|json|srt|vtt|html?)$/i;
+
+export function importInputFiles(unitDir: string, files: string[]) {
+  assertInWorkspace(unitDir);
+  const dir = path.join(unitDir, '01_story', 'inputs');
+  fs.mkdirSync(dir, { recursive: true });
+  const out: { name: string; text: string; skipped?: string }[] = [];
+  for (const f of files) {
+    const name = path.basename(f);
+    if (!TEXT_EXT.test(name)) {
+      out.push({ name, text: '', skipped: '텍스트 파일(txt·md·csv·json·srt 등)만 넣을 수 있습니다' });
+      continue;
+    }
+    const st = fs.statSync(f);
+    if (st.size > 2 * 1024 * 1024) {
+      out.push({ name, text: '', skipped: '2MB보다 큰 파일은 넣을 수 없습니다' });
+      continue;
+    }
+    const text = fs.readFileSync(f, 'utf8');
+    const dst = uniquePath(dir, path.basename(name, path.extname(name)), path.extname(name));
+    fs.copyFileSync(f, dst);
+    out.push({ name: path.basename(dst), text });
+  }
+  return out;
+}
+
 export async function trashProduction(dir: string) {
   assertInWorkspace(dir);
   const isProd = fs.existsSync(path.join(dir, PROD_FILE)) || fs.existsSync(path.join(dir, SERIES_FILE));

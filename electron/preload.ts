@@ -1,7 +1,8 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { ExportInfo, ProjectInfo, Settings } from './workspace';
 import type { EpisodeInfo, NewProductionInput, ProductionInfo, StageId, StageState, EpisodeMeta, ProductionMeta } from '../src/core/production';
-import type { SecretName, SecretStatus, TestResult } from '../src/core/ai';
+import type { CodexStatus, LlmRequest, LlmResult, SecretName, SecretStatus, TestResult } from '../src/core/ai';
+import type { SeriesContext } from '../src/core/story';
 
 export type { ExportInfo, ProjectInfo };
 export type WsSettings = Settings & { googleDrive: string | null; onDrive: boolean };
@@ -71,6 +72,14 @@ const api = {
   prodWriteStage: (unitDir: string, stage: StageId, name: string, data: unknown): Promise<void> =>
     ipcRenderer.invoke('prod:writeStage', unitDir, stage, name, data),
   prodTrash: (dir: string): Promise<void> => ipcRenderer.invoke('prod:trash', dir),
+  prodSeriesContext: (seriesDir: string, uptoNo: number): Promise<SeriesContext> => ipcRenderer.invoke('prod:seriesContext', seriesDir, uptoNo),
+  prodRebuildArc: (seriesDir: string): Promise<void> => ipcRenderer.invoke('prod:rebuildArc', seriesDir),
+  prodImportInputs: (unitDir: string): Promise<{ name: string; text: string; skipped?: string }[]> => ipcRenderer.invoke('prod:importInputs', unitDir),
+
+  // 텍스트 AI (ChatGPT 구독·OpenAI API·Gemini)
+  llmChat: (req: LlmRequest): Promise<LlmResult> => ipcRenderer.invoke('llm:chat', req),
+  codexStatus: (): Promise<CodexStatus> => ipcRenderer.invoke('codex:status'),
+  codexLogin: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('codex:login'),
 
   // AI 연동 — 키 값은 보내기만 하고 다시 읽어 오지 않습니다
   aiStatus: (): Promise<SecretStatus> => ipcRenderer.invoke('ai:status'),
