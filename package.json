@@ -1,7 +1,7 @@
 {
   "name": "studio-m",
   "productName": "Studio M",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Studio M - 영상 편집기",
   "author": "lendmarket",
   "main": "dist-electron/main.js",
