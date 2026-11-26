@@ -114,8 +114,16 @@ export default function StoryStage({ info, ep, unitDir, unitFile, stages, reload
     setBusy(false);
   };
 
+  /** 빈 안(문자 없음, 목록 비어 있음)은 확정하지 못하게 */
+  const hasContent = (v: unknown): boolean =>
+    typeof v === 'string' ? v.trim() !== '' : Array.isArray(v) ? v.some(hasContent) : v && typeof v === 'object' ? Object.values(v).some(hasContent) : false;
+
+  /** 지금 오른쪽 「현재 안」과 같은 안이면 '적용됨'으로 표시 (나중에 다른 안을 고르면 다시 고를 수 있음) */
+  const isCurrent = (value: unknown) => !!session && JSON.stringify(value) === JSON.stringify((session.draft as any)[step]);
+
   const applyValue = (value: unknown, msgAt: number) =>
     update((s) => {
+      if (s.steps[step].confirmed) return; // 확정된 단계는 확정을 풀어야 바꿀 수 있음
       (s.draft as any)[step] = value;
       const m = s.steps[step].messages.find((x) => x.at === msgAt);
       if (m) m.applied = true;
@@ -204,9 +212,9 @@ export default function StoryStage({ info, ep, unitDir, unitFile, stages, reload
                   <div key={i} className="opt-card">
                     <div className="opt-title">안 {i + 1}</div>
                     <StepPreview step={step} value={o} />
-                    {!locked && (
-                      <button className="btn ghost sm" onClick={() => applyValue(o, m.at)}>
-                        이 안으로
+                    {!locked && !st.confirmed && (
+                      <button className="btn ghost sm" onClick={() => applyValue(o, m.at)} disabled={isCurrent(o)}>
+                        {isCurrent(o) ? '적용됨' : '이 안으로'}
                       </button>
                     )}
                   </div>
@@ -215,9 +223,9 @@ export default function StoryStage({ info, ep, unitDir, unitFile, stages, reload
                   <div className="opt-card">
                     <div className="opt-title">고친 안</div>
                     <StepPreview step={step} value={m.draft} />
-                    {!locked && (
-                      <button className="btn ghost sm" onClick={() => applyValue(m.draft, m.at)} disabled={m.applied}>
-                        {m.applied ? '적용됨' : '적용'}
+                    {!locked && !st.confirmed && (
+                      <button className="btn ghost sm" onClick={() => applyValue(m.draft, m.at)} disabled={isCurrent(m.draft)}>
+                        {isCurrent(m.draft) ? '적용됨' : '적용'}
                       </button>
                     )}
                   </div>
@@ -265,6 +273,8 @@ export default function StoryStage({ info, ep, unitDir, unitFile, stages, reload
               ) : (
                 <button
                   className="btn primary sm"
+                  disabled={!hasContent((session.draft as any)[step])}
+                  title={hasContent((session.draft as any)[step]) ? '' : '내용을 채운 뒤 확정할 수 있습니다'}
                   onClick={() => {
                     update((s) => (s.steps[step].confirmed = true));
                     const next = STORY_STEPS.find((x) => x.id !== step && !session.steps[x.id].confirmed);
