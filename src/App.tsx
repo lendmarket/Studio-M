@@ -13,23 +13,56 @@ import Home, { NewProjectDialog } from './components/Home';
 import { NewProductionDialog, ProductionView } from './components/Productions';
 import { projectDuration } from './core/project';
 
+/** 편집 화면 창 최소 크기(px) */
+const MIN = { side: 260, player: 360, upper: 260, timeline: 280 };
+const clamp = (v: number, lo: number, hi: number) => Math.round(Math.max(lo, Math.min(Math.max(lo, hi), v)));
+const readSize = (k: string): number | null => {
+  const v = Number(localStorage.getItem('studiom.layout.' + k));
+  return Number.isFinite(v) && v > 0 ? v : null;
+};
+const saveSize = (k: string, v: number) => {
+  localStorage.setItem('studiom.layout.' + k, String(v));
+  return v;
+};
+
 export default function App() {
   const toast = useStore((s) => s.toast);
   const exportOpen = useStore((s) => s.exportOpen);
   const view = useStore((s) => s.view);
-  const [upperH, setUpperH] = useState<number | null>(null);
+  // 편집 화면 창 크기 (조절값은 다음에 켤 때도 유지)
+  const [upperH, setUpperH] = useState<number | null>(() => readSize('upperH'));
+  const [leftW, setLeftW] = useState<number>(() => readSize('leftW') ?? 400);
+  const [rightW, setRightW] = useState<number>(() => readSize('rightW') ?? 340);
 
-  const onSplit = (e: React.PointerEvent) => {
-    const upper = (e.currentTarget.previousElementSibling as HTMLElement).getBoundingClientRect();
+  const drag = (e: React.PointerEvent, onMove: (dx: number, dy: number) => void) => {
+    e.preventDefault();
+    const x0 = e.clientX;
     const y0 = e.clientY;
-    const h0 = upper.height;
-    const move = (ev: PointerEvent) => setUpperH(Math.max(260, Math.min(window.innerHeight - 280, h0 + ev.clientY - y0)));
+    document.body.classList.add('resizing');
+    const move = (ev: PointerEvent) => onMove(ev.clientX - x0, ev.clientY - y0);
     const up = () => {
+      document.body.classList.remove('resizing');
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+  };
+
+  /** 위(미리보기 줄) ↔ 타임라인 높이 */
+  const onSplit = (e: React.PointerEvent) => {
+    const h0 = (e.currentTarget.previousElementSibling as HTMLElement).getBoundingClientRect().height;
+    drag(e, (_dx, dy) => setUpperH(saveSize('upperH', clamp(h0 + dy, MIN.upper, window.innerHeight - MIN.timeline))));
+  };
+  /** 왼쪽 패널 ↔ 플레이어 ↔ 오른쪽 패널 너비. 플레이어가 나머지를 채우고, 모두 최소 너비 유지 */
+  const onSplitX = (side: 'left' | 'right') => (e: React.PointerEvent) => {
+    const upper = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect().width;
+    const l0 = leftW;
+    const r0 = rightW;
+    drag(e, (dx) => {
+      if (side === 'left') setLeftW(saveSize('leftW', clamp(l0 + dx, MIN.side, upper - r0 - MIN.player - 24)));
+      else setRightW(saveSize('rightW', clamp(r0 - dx, MIN.side, upper - l0 - MIN.player - 24)));
+    });
   };
 
   useEffect(() => {
@@ -118,9 +151,15 @@ export default function App() {
       ) : (
       <div className="workspace">
         <div className="upper" style={upperH ? { flex: `0 0 ${upperH}px` } : undefined}>
-          <LeftPanel />
+          <div className="side-wrap" style={{ flex: `0 1 ${leftW}px`, minWidth: MIN.side }}>
+            <LeftPanel />
+          </div>
+          <div className="vsplit" title="끌어서 너비 조절" onPointerDown={onSplitX('left')} onDoubleClick={() => setLeftW(saveSize('leftW', 400))} />
           <Player />
-          <Inspector />
+          <div className="vsplit" title="끌어서 너비 조절" onPointerDown={onSplitX('right')} onDoubleClick={() => setRightW(saveSize('rightW', 340))} />
+          <div className="side-wrap" style={{ flex: `0 1 ${rightW}px`, minWidth: MIN.side }}>
+            <Inspector />
+          </div>
         </div>
         <div className="splitter" onPointerDown={onSplit} />
         <Timeline />

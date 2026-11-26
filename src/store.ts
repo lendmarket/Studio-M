@@ -68,6 +68,8 @@ interface State {
   addAssets: (assets: Asset[]) => void;
   updateAsset: (id: string, patch: Partial<Asset>) => void;
   removeAsset: (id: string) => void;
+  /** 여러 미디어를 한 번에 삭제 (실행 취소 한 번에 복구) */
+  removeAssets: (ids: string[]) => void;
   addAssetToTimeline: (assetId: string, opts?: { trackId?: string; start?: number }) => void;
   addText: (style: object, name: string, yFrac?: number) => void;
   updateClip: (id: string, patch: Partial<Clip> | ((c: Clip) => void)) => void;
@@ -145,11 +147,14 @@ export const useStore = create<State>((set, get) => ({
   addAssets: (assets) => get().mutate((p) => p.assets.push(...assets)),
   updateAsset: (id, patch) =>
     set((s) => ({ project: { ...s.project, assets: s.project.assets.map((a) => (a.id === id ? { ...a, ...patch } : a)) } })),
-  removeAsset: (id) =>
+  removeAsset: (id) => get().removeAssets([id]),
+  removeAssets: (ids) => {
+    const set1 = new Set(ids);
     get().apply((p) => {
-      p.assets = p.assets.filter((a) => a.id !== id);
-      p.clips = p.clips.filter((c) => c.assetId !== id);
-    }),
+      p.assets = p.assets.filter((a) => !set1.has(a.id));
+      p.clips = p.clips.filter((c) => !c.assetId || !set1.has(c.assetId));
+    });
+  },
 
   addAssetToTimeline: (assetId, opts = {}) => {
     const { project, currentTime } = get();

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useStore, LeftTab } from '../store';
 import { Icon } from './Icons';
 import { api } from '../api';
@@ -66,55 +66,120 @@ function useDropImport() {
   };
 }
 
-function AssetCard({ a }: { a: Asset }) {
+const TYPE_LABEL: Record<string, string> = { video: '동영상', image: '이미지', audio: '오디오' };
+
+/** 여러 미디어를 차례대로 타임라인에 추가 (영상·이미지는 메인 트랙 끝에 이어서, 오디오는 재생헤드부터 이어서) */
+function addManyToTimeline(ids: string[]) {
+  const st = useStore.getState();
+  let audioAt = st.currentTime;
+  for (const id of ids) {
+    const a = useStore.getState().project.assets.find((x) => x.id === id);
+    if (!a) continue;
+    if (a.type === 'audio') {
+      useStore.getState().addAssetToTimeline(id, { start: audioAt });
+      audioAt += a.duration;
+    } else useStore.getState().addAssetToTimeline(id);
+  }
+}
+
+/** 미디어 삭제 — 타임라인에 쓰인 클립도 지워지므로 그때만 확인 */
+async function removeMany(ids: string[]) {
+  const st = useStore.getState();
+  const set1 = new Set(ids);
+  const used = st.project.clips.filter((c) => c.assetId && set1.has(c.assetId)).length;
+  if (used) {
+    const r = await api.confirm(
+      `미디어 ${ids.length}개를 삭제할까요?`,
+      ['삭제', '취소'],
+      `타임라인에서 쓰고 있는 클립 ${used}개도 함께 지워집니다. 삭제 후 Ctrl+Z로 되돌릴 수 있습니다.`,
+    );
+    if (r !== 0) return false;
+  }
+  st.removeAssets(ids);
+  return true;
+}
+
+interface ItemProps {
+  a: Asset;
+  view: 'grid' | 'list';
+  selected: boolean;
+  selectedIds: string[];
+  onPick: (e: React.MouseEvent, id: string) => void;
+}
+
+function AssetItem({ a, view, selected, selectedIds, onPick }: ItemProps) {
   const st = useStore.getState();
   const thumb = a.thumbs?.[Math.min(a.thumbs.length - 1, 1)];
+  const dur = a.type !== 'image' ? formatTime(a.duration, 30, false).replace(/^00:/, '') : '';
+  const thumbEl =
+    a.type === 'audio' ? (
+      <div className="asset-audio">
+        <Icon name="audio" size={view === 'grid' ? 26 : 16} />
+      </div>
+    ) : thumb ? (
+      <img src={mediaUrl(thumb)} draggable={false} />
+    ) : (
+      <div className="asset-audio">
+        <Icon name={a.type === 'image' ? 'image' : 'video'} size={view === 'grid' ? 26 : 16} />
+      </div>
+    );
+  const actions = (
+    <>
+      <button
+        className="asset-add"
+        title="타임라인에 추가"
+        onClick={(e) => {
+          e.stopPropagation();
+          st.addAssetToTimeline(a.id);
+        }}
+      >
+        <Icon name="plus" size={14} />
+      </button>
+      <button
+        className="asset-del"
+        title="삭제"
+        onClick={(e) => {
+          e.stopPropagation();
+          removeMany([a.id]);
+        }}
+      >
+        <Icon name="close" size={12} />
+      </button>
+    </>
+  );
   return (
     <div
-      className="asset"
+      className={(view === 'grid' ? 'asset' : 'asset-row') + (selected ? ' sel' : '')}
+      data-asset-id={a.id}
       draggable
       onDragStart={(e) => {
-        e.dataTransfer.setData('application/x-studiom-asset', a.id);
+        // 선택된 항목을 끌면 선택한 것 전부, 아니면 이것 하나
+        const ids = selected ? selectedIds : [a.id];
+        e.dataTransfer.setData('application/x-studiom-asset', ids.join('\n'));
         e.dataTransfer.effectAllowed = 'copy';
       }}
+      onClick={(e) => onPick(e, a.id)}
       onDoubleClick={() => st.addAssetToTimeline(a.id)}
       title={a.name}
     >
-      <div className="asset-thumb">
-        {a.type === 'audio' ? (
-          <div className="asset-audio">
-            <Icon name="audio" size={26} />
+      {view === 'grid' ? (
+        <>
+          <div className="asset-thumb">
+            {thumbEl}
+            {dur && <span className="badge">{dur}</span>}
+            {actions}
           </div>
-        ) : thumb ? (
-          <img src={mediaUrl(thumb)} draggable={false} />
-        ) : (
-          <div className="asset-audio">
-            <Icon name={a.type === 'image' ? 'image' : 'video'} size={26} />
-          </div>
-        )}
-        {a.type !== 'image' && <span className="badge">{formatTime(a.duration, 30, false).replace(/^00:/, '')}</span>}
-        <button
-          className="asset-add"
-          title="타임라인에 추가"
-          onClick={(e) => {
-            e.stopPropagation();
-            st.addAssetToTimeline(a.id);
-          }}
-        >
-          <Icon name="plus" size={14} />
-        </button>
-        <button
-          className="asset-del"
-          title="삭제"
-          onClick={(e) => {
-            e.stopPropagation();
-            st.removeAsset(a.id);
-          }}
-        >
-          <Icon name="close" size={12} />
-        </button>
-      </div>
-      <div className="asset-name">{a.name}</div>
+          <div className="asset-name">{a.name}</div>
+        </>
+      ) : (
+        <>
+          <div className="row-thumb">{thumbEl}</div>
+          <div className="row-name">{a.name}</div>
+          <span className="row-type">{TYPE_LABEL[a.type]}</span>
+          <span className="row-dur">{dur || '—'}</span>
+          <div className="row-actions">{actions}</div>
+        </>
+      )}
     </div>
   );
 }
@@ -122,20 +187,127 @@ function AssetCard({ a }: { a: Asset }) {
 function MediaTab() {
   const assets = useStore((s) => s.project.assets);
   const [filter, setFilter] = useState<'all' | 'video' | 'image' | 'audio'>('all');
+  const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('studiom.mediaView') === 'list' ? 'list' : 'grid'));
+  const [sel, setSel] = useState<string[]>([]);
+  const [anchor, setAnchor] = useState<string | null>(null);
+  const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const areaRef = useRef<HTMLDivElement>(null);
   const drop = useDropImport();
   const list = assets.filter((a) => filter === 'all' || a.type === filter);
+
+  // 지워졌거나 필터로 숨은 항목은 선택에서 뺌
+  useEffect(() => {
+    const vis = new Set(list.map((a) => a.id));
+    setSel((s) => (s.every((id) => vis.has(id)) ? s : s.filter((id) => vis.has(id))));
+  }, [assets, filter]);
+
+  const changeView = (v: 'grid' | 'list') => {
+    setView(v);
+    localStorage.setItem('studiom.mediaView', v);
+  };
+
+  /** 클릭: 하나 선택 / Ctrl: 더하기·빼기 / Shift: 범위 */
+  const onPick = (e: React.MouseEvent, id: string) => {
+    if (e.shiftKey && anchor) {
+      const i0 = list.findIndex((a) => a.id === anchor);
+      const i1 = list.findIndex((a) => a.id === id);
+      if (i0 >= 0 && i1 >= 0) {
+        const range = list.slice(Math.min(i0, i1), Math.max(i0, i1) + 1).map((a) => a.id);
+        setSel((s) => (e.ctrlKey ? Array.from(new Set([...s, ...range])) : range));
+        return;
+      }
+    }
+    if (e.ctrlKey || e.metaKey) setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+    else setSel([id]);
+    setAnchor(id);
+  };
+
+  /** 빈 곳에서 끌면 사각형 안의 항목을 선택 (Ctrl을 누르고 끌면 기존 선택에 더함) */
+  const onAreaDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest('[data-asset-id], button')) return;
+    const area = areaRef.current!;
+    const r0 = area.getBoundingClientRect();
+    const sx = e.clientX - r0.left + area.scrollLeft;
+    const sy = e.clientY - r0.top + area.scrollTop;
+    const base = e.ctrlKey || e.metaKey ? sel : [];
+    let moved = false;
+    const move = (ev: PointerEvent) => {
+      const r = area.getBoundingClientRect();
+      const cx = ev.clientX - r.left + area.scrollLeft;
+      const cy = ev.clientY - r.top + area.scrollTop;
+      const b = { x: Math.min(sx, cx), y: Math.min(sy, cy), w: Math.abs(cx - sx), h: Math.abs(cy - sy) };
+      if (!moved && b.w + b.h < 4) return;
+      moved = true;
+      setBox(b);
+      const hit: string[] = [];
+      area.querySelectorAll<HTMLElement>('[data-asset-id]').forEach((el) => {
+        const er = el.getBoundingClientRect();
+        const ex = er.left - r.left + area.scrollLeft;
+        const ey = er.top - r.top + area.scrollTop;
+        if (ex < b.x + b.w && ex + er.width > b.x && ey < b.y + b.h && ey + er.height > b.y) hit.push(el.dataset.assetId!);
+      });
+      setSel(Array.from(new Set([...base, ...hit])));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setBox(null);
+      if (!moved) setSel(base); // 빈 곳 클릭 = 선택 해제
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      e.stopPropagation();
+      setSel(list.map((a) => a.id));
+    } else if ((e.key === 'Delete' || e.key === 'Backspace') && sel.length) {
+      e.preventDefault();
+      e.stopPropagation(); // 타임라인 클립 삭제 단축키와 겹치지 않게
+      removeMany(sel).then((ok) => ok && setSel([]));
+    } else if (e.key === 'Escape') setSel([]);
+  };
+
+  const ordered = list.filter((a) => sel.includes(a.id)).map((a) => a.id); // 화면 순서대로
+
   return (
-    <div className={'tab-content' + (drop.over ? ' drop-over' : '')} {...drop.props}>
+    <div className={'tab-content media-tab' + (drop.over ? ' drop-over' : '')} {...drop.props}>
       <button className="import-btn" onClick={async () => importFiles(await api.openMedia('media'))}>
         <Icon name="plus" size={18} /> 가져오기
       </button>
-      <div className="chips">
-        {(['all', 'video', 'image', 'audio'] as const).map((f) => (
-          <button key={f} className={'chip' + (filter === f ? ' active' : '')} onClick={() => setFilter(f)}>
-            {{ all: '전체', video: '동영상', image: '이미지', audio: '오디오' }[f]}
+      <div className="media-bar">
+        <div className="chips">
+          {(['all', 'video', 'image', 'audio'] as const).map((f) => (
+            <button key={f} className={'chip' + (filter === f ? ' active' : '')} onClick={() => setFilter(f)}>
+              {{ all: '전체', video: '동영상', image: '이미지', audio: '오디오' }[f]}
+            </button>
+          ))}
+        </div>
+        <div className="view-toggle">
+          <button className={view === 'grid' ? 'on' : ''} title="미리보기형" onClick={() => changeView('grid')}>
+            <Icon name="grid" size={14} />
           </button>
-        ))}
+          <button className={view === 'list' ? 'on' : ''} title="목록형" onClick={() => changeView('list')}>
+            <Icon name="list" size={14} />
+          </button>
+        </div>
       </div>
+      {sel.length > 0 && (
+        <div className="sel-bar">
+          <b>{sel.length}개 선택</b>
+          <button className="btn primary sm" onClick={() => addManyToTimeline(ordered)}>
+            <Icon name="plus" size={13} /> 타임라인에 추가
+          </button>
+          <button className="btn ghost sm danger" onClick={() => removeMany(ordered).then((ok) => ok && setSel([]))}>
+            삭제
+          </button>
+          <button className="link" onClick={() => setSel([])}>
+            선택 해제
+          </button>
+        </div>
+      )}
       {list.length === 0 ? (
         <div className="empty">
           <Icon name="folder" size={36} />
@@ -143,10 +315,14 @@ function MediaTab() {
           <small>동영상 · 사진 · 음악</small>
         </div>
       ) : (
-        <div className="asset-grid">
-          {list.map((a) => (
-            <AssetCard key={a.id} a={a} />
-          ))}
+        <div className="asset-area" ref={areaRef} tabIndex={0} onPointerDown={onAreaDown} onKeyDown={onKey}>
+          <div className={view === 'grid' ? 'asset-grid' : 'asset-list'}>
+            {list.map((a) => (
+              <AssetItem key={a.id} a={a} view={view} selected={sel.includes(a.id)} selectedIds={ordered} onPick={onPick} />
+            ))}
+          </div>
+          {box && <div className="sel-rect" style={{ left: box.x, top: box.y, width: box.w, height: box.h }} />}
+          <small className="muted area-hint">빈 곳에서 끌어서 여러 개 선택 · Ctrl/Shift+클릭 · Ctrl+A 전체 · Delete 삭제 · 더블클릭 또는 끌어서 타임라인에 추가</small>
         </div>
       )}
     </div>
@@ -154,7 +330,9 @@ function MediaTab() {
 }
 
 function AudioTab() {
-  const assets = useStore((s) => s.project.assets.filter((a) => a.type === 'audio'));
+  // 선택자에서 새 배열을 만들면 zustand 5에서 무한 렌더(React #185) → 원본을 받아서 거름
+  const all = useStore((s) => s.project.assets);
+  const assets = all.filter((a) => a.type === 'audio');
   const drop = useDropImport();
   return (
     <div className={'tab-content' + (drop.over ? ' drop-over' : '')} {...drop.props}>

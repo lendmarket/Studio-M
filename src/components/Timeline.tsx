@@ -230,7 +230,7 @@ export default function Timeline() {
     const hit = trackAt(e.clientY);
     let ids: string[] = [];
     const aid = e.dataTransfer.getData('application/x-studiom-asset');
-    if (aid) ids = [aid];
+    if (aid) ids = aid.split('\n').filter(Boolean); // 미디어 패널에서 여러 개를 끌어 오면 줄바꿈으로 구분
     else if (e.dataTransfer.files.length) {
       const paths = Array.from(e.dataTransfer.files).map((f) => api.pathForFile(f)).filter(Boolean);
       ids = (await importFiles(paths)).map((a) => a.id);
