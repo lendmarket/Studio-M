@@ -23,13 +23,63 @@ const STATE_TEXT: Record<string, string> = {
   dev: '개발 실행에서는 업데이트를 쓸 수 없습니다 (설치된 Studio M에서 동작)',
 };
 
-/** 설정 › 버전·업데이트: 설치 버전, 최신 버전, 수동 확인·업데이트 버튼 */
-export function UpdateCard() {
+function useUpdateState() {
   const [st, setSt] = useState<UpdState | null>(null);
   useEffect(() => {
     api.updateState().then(setSt);
     return api.onUpdateStatus((s: UpdState) => setSt(s));
   }, []);
+  return st;
+}
+
+/** 상단 로고 옆: 현재 버전 + 업데이트 현황. 누르면 상황에 맞게 확인 / 다시 받기 / 설치 */
+export function UpdateChip() {
+  const st = useUpdateState();
+  if (!st) return null;
+  const newer = !!st.latest && st.latest !== st.current;
+  let label = `v${st.current}`;
+  let cls = '';
+  let title = '눌러서 최신 버전 확인';
+  let onClick: (() => void) | undefined = () => api.checkUpdate();
+  if (st.state === 'dev') {
+    label = '개발 실행';
+    title = STATE_TEXT.dev;
+    onClick = undefined;
+  } else if (st.state === 'checking') {
+    label += ' · 확인 중';
+    title = STATE_TEXT.checking;
+    onClick = undefined;
+  } else if (st.state === 'available' || st.state === 'downloading') {
+    label += ` → v${st.latest} 받는 중${st.percent != null ? ` ${Math.round(st.percent)}%` : ''}`;
+    cls = ' busy';
+    title = '새 버전을 내려받고 있습니다';
+    onClick = undefined;
+  } else if (st.state === 'ready') {
+    label = `v${st.latest} 업데이트`;
+    cls = ' ready';
+    title = '눌러서 지금 설치하고 다시 시작';
+    onClick = () => api.installUpdate();
+  } else if (st.state === 'error') {
+    if (newer) {
+      label += ` → v${st.latest} 다시 받기`;
+      onClick = () => api.downloadUpdate();
+    } else label += ' · 확인 실패';
+    cls = ' err';
+    title = st.message ? `${STATE_TEXT.error}: ${st.message.split('\n')[0].slice(0, 120)}` : STATE_TEXT.error;
+  } else if (st.state === 'none') {
+    title = `최신 버전입니다${st.checkedAt ? ` (${new Date(st.checkedAt).toLocaleTimeString('ko-KR', { timeStyle: 'short' })} 확인)` : ''} · 눌러서 다시 확인`;
+  }
+  return (
+    <button className={'ver-chip' + cls} title={title} disabled={!onClick} onClick={onClick}>
+      {st.state === 'ready' && <Icon name="update" size={13} />}
+      {label}
+    </button>
+  );
+}
+
+/** 설정 › 버전·업데이트: 설치 버전, 최신 버전, 수동 확인·업데이트 버튼 */
+export function UpdateCard() {
+  const st = useUpdateState();
   if (!st) return null;
   const busy = st.state === 'checking' || st.state === 'available' || st.state === 'downloading';
   const newer = !!st.latest && st.latest !== st.current;

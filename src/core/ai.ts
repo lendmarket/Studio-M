@@ -82,7 +82,7 @@ export const DEFAULT_AI: AiSettings = {
     { id: 'tts-gemini', label: 'Gemini TTS', kind: 'tts', unit: 'mtok', usd: null },
     { id: 'tts-typecast', label: '타입캐스트 (구독 크레딧)', kind: 'tts', unit: 'kchar', usd: null },
   ],
-  defaultBudgetUsd: 20,
+  defaultBudgetUsd: null, // 예산 한도는 쓰지 않음 (생성 직전 예상 비용 확인 방식)
 };
 
 export function withAiDefaults(a?: Partial<AiSettings> | null): AiSettings {

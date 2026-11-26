@@ -175,19 +175,10 @@ export default function AiSettingsCards() {
 
       <div className="set-card">
         <h3>비용</h3>
-        <p className="muted">일괄 생성 전에 이 단가로 예상 비용을 계산합니다. 단가는 참고값이니 Google·타입캐스트 요금 페이지에서 확인해 고치세요. 비워 두면 계산에서 빠집니다.</p>
-        <div className="key-row">
-          <span className="key-label">새 작품 기본 예산</span>
-          <input
-            className="text-input num"
-            type="number"
-            min={0}
-            placeholder="한도 없음"
-            defaultValue={ai.defaultBudgetUsd ?? ''}
-            onBlur={(e) => saveAi({ defaultBudgetUsd: e.target.value === '' ? null : Math.max(0, parseFloat(e.target.value)) })}
-          />
-          <small className="muted">USD · 작품(시리즈는 화)마다</small>
-        </div>
+        <p className="muted">
+          예산 한도는 따로 정하지 않습니다. 이미지·영상·음성처럼 비용이 드는 생성은 실행 직전에 이 단가로 계산한 <b>예상 비용</b>을 보여 드리고, 버튼을 눌러야 실행됩니다.
+          단가는 참고값이니 Google·타입캐스트 요금 페이지에서 확인해 고치세요. 비워 두면 계산에서 빠집니다.
+        </p>
         <table className="price-table">
           <thead>
             <tr>

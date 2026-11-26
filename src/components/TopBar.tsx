@@ -4,6 +4,7 @@ import { Icon } from './Icons';
 import { goHome, openProjectFile, saveProject } from '../projectIO';
 import { platformById } from '../core/platforms';
 import { api } from '../api';
+import { UpdateChip } from './UpdateBanner';
 
 export function Logo({ size = 22 }: { size?: number }) {
   return <img src="./logo.svg" width={size} height={size} alt="Studio M" draggable={false} />;
@@ -28,6 +29,13 @@ export default function TopBar() {
     return () => window.removeEventListener('mousedown', close);
   }, []);
 
+  const settingsOn = useStore((s) => s.view === 'home' && s.homePage === 'settings');
+  /** 어느 화면에서든 설정으로 (편집 중이면 저장 후 홈으로) */
+  const openSettings = async () => {
+    if (useStore.getState().view === 'editor') await goHome();
+    useStore.getState().set({ view: 'home', homePage: 'settings' });
+  };
+
   const item = (label: string, keys: string, fn: () => void) => (
     <button
       className="menu-item"
@@ -51,6 +59,7 @@ export default function TopBar() {
           </span>
           <span className="caret">▾</span>
         </button>
+        <UpdateChip />
         {menu && (
           <div className="menu">
             {item('홈', '', () => goHome())}
@@ -114,6 +123,9 @@ export default function TopBar() {
           <Icon name="export" size={16} /> 내보내기
         </button>
         )}
+        <button className={'top-icon-btn' + (settingsOn ? ' on' : '')} title="설정" onClick={openSettings}>
+          <Icon name="gear" size={15} /> 설정
+        </button>
       </div>
     </div>
   );

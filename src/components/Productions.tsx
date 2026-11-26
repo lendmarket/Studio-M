@@ -171,15 +171,12 @@ export function NewProductionDialog() {
   const [title, setTitle] = useState('');
   const [aspect, setAspect] = useState(ASPECTS[0].id);
   const [lengthSec, setLengthSec] = useState(60);
-  const [budget, setBudget] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setKind(open);
     setTitle('');
-    const b = settings?.ai?.defaultBudgetUsd;
-    setBudget(b == null ? '' : String(b));
   }, [open]);
   if (!open) return null;
 
@@ -187,8 +184,8 @@ export function NewProductionDialog() {
   const go = async () => {
     setBusy(true);
     try {
-      const b = budget.trim() === '' ? null : Math.max(0, parseFloat(budget));
-      const info = await api.prodCreate({ kind, title, format: { aspect, lengthSec: Math.max(5, Math.round(lengthSec)) }, budgetUsd: Number.isFinite(b as number) ? b : null });
+      // 예산 한도는 두지 않음 — 비용은 생성 직전에 예상값을 보여 주고 확인받는 방식
+      const info = await api.prodCreate({ kind, title, format: { aspect, lengthSec: Math.max(5, Math.round(lengthSec)) }, budgetUsd: null });
       useStore.getState().set({ newProductionOpen: null });
       await openProduction(info.dir);
     } catch (e) {
@@ -252,12 +249,7 @@ export function NewProductionDialog() {
               <small className="muted">초</small>
             </div>
           </div>
-          <div className="row">
-            <label>예산 (USD)</label>
-            <input className="text-input num" type="number" min={0} placeholder="한도 없음" value={budget} onChange={(e) => setBudget(e.target.value)} />
-            <small className="muted">{kind === 'series' ? '화마다 적용 · ' : ''}생성 비용이 넘으면 멈추고 물어봅니다</small>
-          </div>
-          <p className="hint">장르·톤·타깃 같은 내용은 S1 스토리 개발 대화에서 함께 정합니다.</p>
+          <p className="hint">장르·톤·타깃 같은 내용은 S1 스토리 개발 대화에서 함께 정합니다. 이미지·영상처럼 비용이 드는 생성은 실행 전에 예상 비용을 보여 드리고, 버튼을 눌러야 실행됩니다.</p>
           <div className="modal-foot">
             <button className="btn ghost" onClick={close}>
               취소
@@ -294,19 +286,9 @@ export function ProductionView() {
   const unitDir = isSeries ? ep?.dir : info.dir;
   const unitFile = isSeries ? ep?.file : info.file;
   const stages: Stages | undefined = isSeries ? ep?.meta.stages : info.meta.stages;
-  const budget = isSeries ? ep?.meta.budgetUsd ?? null : info.meta.budgetUsd;
   const def = STAGES.find((s) => s.id === stage)!;
   const st = stages?.[stage] || { status: 'empty' as const };
   const a = aspectById(info.meta.format.aspect);
-
-  const saveBudget = async (v: string) => {
-    if (!unitFile) return;
-    const n = v.trim() === '' ? null : parseFloat(v);
-    if (n !== null && (!Number.isFinite(n) || n < 0)) return useStore.getState().showToast('0 이상의 숫자를 입력하세요');
-    if (n === budget) return;
-    await api.prodUpdateMeta(unitFile, { budgetUsd: n });
-    reload();
-  };
 
   return (
     <div className="prod-view">
@@ -355,18 +337,6 @@ export function ProductionView() {
         )}
         <div className="side-sec">
           <div className="side-title">관리</div>
-          <label className="side-item budget" title="생성 비용이 이 금액을 넘으면 멈추고 물어봅니다">
-            <Icon name="speed" size={15} /> 예산 $
-            <input
-              key={`${unitFile}-${budget}`}
-              type="number"
-              min={0}
-              placeholder="한도 없음"
-              defaultValue={budget == null ? '' : String(budget)}
-              onBlur={(e) => saveBudget(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            />
-          </label>
           <button className="side-item" onClick={() => api.openPath(unitDir || info.dir)}>
             <Icon name="folder" size={15} /> {isSeries ? '이 화 폴더 열기' : '작품 폴더 열기'}
           </button>

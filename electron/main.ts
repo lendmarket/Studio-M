@@ -409,7 +409,8 @@ function setupUpdater() {
   ipcMain.handle('update:check', () => (app.isPackaged ? autoUpdater.checkForUpdates().catch(() => null) : send({ state: 'dev' })));
   // 자동 다운로드가 실패했을 때 손으로 다시 받기
   ipcMain.handle('update:download', () => (app.isPackaged ? autoUpdater.downloadUpdate().catch(() => null) : send({ state: 'dev' })));
-  ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
+  // 설치 창 없이 조용히 설치하고 끝나면 Studio M을 다시 켬 (isSilent, isForceRunAfter)
+  ipcMain.handle('update:install', () => autoUpdater.quitAndInstall(true, true));
   if (app.isPackaged) setTimeout(() => autoUpdater.checkForUpdates().catch(() => undefined), 4000);
 }
 

@@ -17,7 +17,7 @@ const NAV: { id: HomePage; label: string; icon: string; soon?: string }[] = [
   { id: 'projects', label: '편집 프로젝트', icon: 'folder' },
   { id: 'templates', label: '템플릿', icon: 'sparkle', soon: '2단계' },
   { id: 'uploads', label: '업로드', icon: 'export', soon: '5단계' },
-  { id: 'settings', label: '설정', icon: 'gear' },
+  // 설정은 우측 상단 「설정」 버튼으로 (어느 화면에서든)
 ];
 
 const ago = (ms: number) => {
