@@ -1,22 +1,64 @@
 // ChatGPT 구독 연결: PC에 설치된 Codex CLI(`codex`)를 불러 씁니다.
 // 설치: npm i -g @openai/codex  /  로그인: codex login (ChatGPT 계정)
-import { spawn } from 'child_process';
+import { execFileSync, spawn } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import type { CodexStatus } from '../src/core/ai';
 
-/** Electron을 바로가기로 켜면 PATH에 npm 전역 폴더가 없을 수 있어 직접 찾음 */
-function codexCommand(): string {
-  if (process.platform === 'win32') {
-    const cands = [
-      process.env.APPDATA && path.join(process.env.APPDATA, 'npm', 'codex.cmd'),
-      process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs', 'codex', 'codex.exe'),
-    ].filter(Boolean) as string[];
-    for (const c of cands) if (fs.existsSync(c)) return c;
-    return 'codex.cmd';
+/** Windows 사용자 PATH(레지스트리) — 앱이 업데이트 후 다시 켜질 때 환경 변수가 덜 넘어오는 경우 대비 */
+function userPathDirs(): string[] {
+  try {
+    const out = execFileSync('reg', ['query', 'HKCU\\Environment', '/v', 'Path'], { encoding: 'utf8', windowsHide: true, timeout: 5000 });
+    const m = /Path\s+REG_(?:EXPAND_)?SZ\s+(.*)/i.exec(out);
+    if (!m) return [];
+    return m[1].split(';').map((d) => d.trim().replace(/%([^%]+)%/g, (_, v) => process.env[v] || `%${v}%`)).filter(Boolean);
+  } catch {
+    return [];
   }
-  return 'codex';
+}
+
+/** npm 전역 폴더 후보 (APPDATA가 비어 있어도 홈 폴더로 찾음) */
+function npmDirs(): string[] {
+  const dirs = [
+    process.env.APPDATA && path.join(process.env.APPDATA, 'npm'),
+    path.join(os.homedir(), 'AppData', 'Roaming', 'npm'),
+    ...(process.env.PATH || process.env.Path || '').split(';'),
+    ...userPathDirs(),
+  ].filter((d): d is string => !!d && !!d.trim());
+  return [...new Set(dirs.map((d) => path.normalize(d.trim())))];
+}
+
+type Launch = { file: string; pre: string[]; shell: boolean; env?: NodeJS.ProcessEnv };
+
+/**
+ * Codex 실행 방법을 찾음.
+ * Windows: npm으로 설치된 codex.js를 Studio M(Electron)에 내장된 Node로 직접 실행 → 셸·PATH·Node 설치 여부와 무관.
+ * 못 찾으면 codex.exe, 마지막으로 셸의 codex.cmd.
+ */
+function codexLaunch(): Launch {
+  if (process.platform !== 'win32') return { file: 'codex', pre: [], shell: false };
+  const dirs = npmDirs();
+  for (const d of dirs) {
+    const js = path.join(d, 'node_modules', '@openai', 'codex', 'bin', 'codex.js');
+    if (fs.existsSync(js)) return { file: process.execPath, pre: [js], shell: false, env: { ELECTRON_RUN_AS_NODE: '1' } };
+  }
+  const exes = [process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Programs', 'codex', 'codex.exe'), ...dirs.map((d) => path.join(d, 'codex.exe'))];
+  for (const e of exes) if (e && fs.existsSync(e)) return { file: e, pre: [], shell: false };
+  return { file: 'codex.cmd', pre: [], shell: true };
+}
+
+/** 출력 해석: UTF-8이 아니면(한글 Windows 오류 메시지) CP949로 읽음 */
+function decode(buf: Buffer): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+  } catch {
+    try {
+      return new TextDecoder('euc-kr').decode(buf);
+    } catch {
+      return buf.toString('utf8');
+    }
+  }
 }
 
 interface RunResult {
@@ -41,26 +83,26 @@ function codexEnv() {
 
 function run(args: string[], opts: { input?: string; cwd?: string; timeoutMs?: number } = {}): Promise<RunResult> {
   return new Promise((resolve) => {
-    const cmd = codexCommand();
-    // .cmd 파일은 셸을 거쳐야 실행됨. 인자는 고정 문자열만 쓰고 프롬프트는 표준 입력으로 보냄
-    const p = spawn(cmd.includes(' ') ? `"${cmd}"` : cmd, args, {
+    const l = codexLaunch();
+    // 셸을 거치는 마지막 대안에서도 인자는 고정 문자열만 쓰고 프롬프트는 표준 입력으로 보냄
+    const p = spawn(l.file, [...l.pre, ...args], {
       cwd: opts.cwd || os.tmpdir(),
-      shell: process.platform === 'win32',
+      shell: l.shell,
       windowsHide: true,
-      env: codexEnv(),
+      env: { ...codexEnv(), ...l.env },
     });
-    let stdout = '';
-    let stderr = '';
+    const out: Buffer[] = [];
+    const err: Buffer[] = [];
     const timer = setTimeout(() => p.kill(), opts.timeoutMs ?? 30000);
-    p.stdout.on('data', (d) => (stdout += d.toString()));
-    p.stderr.on('data', (d) => (stderr += d.toString()));
+    p.stdout.on('data', (d: Buffer) => out.push(d));
+    p.stderr.on('data', (d: Buffer) => err.push(d));
     p.on('error', (e) => {
       clearTimeout(timer);
-      resolve({ code: -1, stdout, stderr: stderr + String(e.message) });
+      resolve({ code: -1, stdout: decode(Buffer.concat(out)), stderr: decode(Buffer.concat(err)) + String(e.message) });
     });
     p.on('close', (code) => {
       clearTimeout(timer);
-      resolve({ code, stdout, stderr });
+      resolve({ code, stdout: decode(Buffer.concat(out)), stderr: decode(Buffer.concat(err)) });
     });
     if (opts.input !== undefined) p.stdin.end(opts.input, 'utf8');
     else p.stdin.end();
