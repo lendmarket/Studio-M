@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, protocol, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { ChildProcess, spawn } from 'child_process';
 import fs from 'fs';
@@ -160,6 +160,30 @@ function createWindow() {
   const dev = process.env.VITE_DEV_SERVER_URL;
   if (dev) win.loadURL(dev);
   else win.loadFile(path.join(__dirname, '../dist/index.html')).catch((e) => log('loadFile 실패', e));
+  // 오른쪽 클릭 메뉴: 선택한 글 복사, 입력칸에서는 잘라내기·붙여넣기·모두 선택
+  wc.on('context-menu', (_e, p) => {
+    const items: Electron.MenuItemConstructorOptions[] = [];
+    const hasSel = !!p.selectionText.trim();
+    if (p.isEditable) {
+      items.push(
+        { label: '실행 취소', role: 'undo', enabled: p.editFlags.canUndo },
+        { label: '다시 실행', role: 'redo', enabled: p.editFlags.canRedo },
+        { type: 'separator' },
+        { label: '잘라내기', role: 'cut', enabled: p.editFlags.canCut && hasSel },
+        { label: '복사', role: 'copy', enabled: p.editFlags.canCopy && hasSel },
+        { label: '붙여넣기', role: 'paste', enabled: p.editFlags.canPaste },
+        { type: 'separator' },
+        { label: '모두 선택', role: 'selectAll' },
+      );
+    } else if (hasSel) {
+      items.push({ label: '복사', role: 'copy' });
+    }
+    if (p.linkURL && /^https?:/i.test(p.linkURL)) {
+      if (items.length) items.push({ type: 'separator' });
+      items.push({ label: '링크 주소 복사', click: () => clipboard.writeText(p.linkURL) });
+    }
+    if (items.length) Menu.buildFromTemplate(items).popup({ window: win! });
+  });
   win.webContents.on('before-input-event', (_e, input) => {
     if (input.key === 'F12' && input.type === 'keyDown') win?.webContents.toggleDevTools();
   });

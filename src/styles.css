@@ -31,8 +31,13 @@ body {
   font-family: 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
   font-size: 13px;
   overflow: hidden;
-  user-select: none;
+  user-select: text; /* 화면의 글은 끌어서 선택하고 오른쪽 클릭으로 복사 */
   -webkit-font-smoothing: antialiased;
+}
+/* 버튼·탭·편집기(타임라인·미리보기)처럼 끌기로 조작하는 곳은 선택 안 됨 */
+button, .btn, .topbar, .tabbar, .nav-item, .side-item, .menu, .menu-item, .chip, .seg, .tab, .ins-tab, .switch,
+.timeline, .tl-toolbar, .player, .player-bar, .canvas-wrap, .stage, .asset-grid, .clip, .handle, .splitter, .stepper, .story-steps {
+  user-select: none;
 }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
 button:disabled { opacity: 0.35; cursor: default; }
