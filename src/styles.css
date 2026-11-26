@@ -658,3 +658,4 @@ input[type='range']::-webkit-slider-thumb {
 .sz-safe { position: absolute; border: 1px dashed color-mix(in srgb, var(--pc) 80%, #fff); border-radius: 3px; }
 .icon-btn.on { color: var(--accent); }
 .limit-warn { margin-left: 10px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 90, 110, 0.16); color: var(--danger); font-family: 'Segoe UI', sans-serif; font-size: 11px; }
+.err-text { color: var(--danger); }

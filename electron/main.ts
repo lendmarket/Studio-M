@@ -359,19 +359,32 @@ ipcMain.handle('export:cancel', () => {
 
 // ---------- 자동 업데이트 ----------
 function setupUpdater() {
-  const send = (s: object) => win?.webContents.send('update:status', s);
+  // 마지막 상태를 기억해 두었다가 설정 화면이 열릴 때 바로 보여 줌
+  const state: { current: string; latest?: string; state: string; percent?: number; message?: string; checkedAt?: number } = {
+    current: app.getVersion(),
+    state: app.isPackaged ? 'idle' : 'dev',
+  };
+  const send = (s: Partial<typeof state>) => {
+    Object.assign(state, s);
+    if (s.state !== 'downloading') delete state.percent;
+    if (s.state !== 'error') delete state.message;
+    win?.webContents.send('update:status', { ...state, ...s });
+  };
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on('checking-for-update', () => send({ state: 'checking' }));
-  autoUpdater.on('update-available', (i) => send({ state: 'available', version: i.version }));
-  autoUpdater.on('update-not-available', () => send({ state: 'none' }));
+  autoUpdater.on('update-available', (i) => send({ state: 'available', latest: i.version, version: i.version, checkedAt: Date.now() } as any));
+  autoUpdater.on('update-not-available', (i) => send({ state: 'none', latest: i?.version || app.getVersion(), checkedAt: Date.now() }));
   autoUpdater.on('download-progress', (p) => send({ state: 'downloading', percent: p.percent }));
-  autoUpdater.on('update-downloaded', (i) => send({ state: 'ready', version: i.version }));
+  autoUpdater.on('update-downloaded', (i) => send({ state: 'ready', latest: i.version, version: i.version } as any));
   autoUpdater.on('error', (e) => {
     log('update error', e);
-    send({ state: 'error', message: String(e?.message || e) });
+    send({ state: 'error', message: String(e?.message || e), checkedAt: Date.now() });
   });
+  ipcMain.handle('update:state', () => ({ ...state }));
   ipcMain.handle('update:check', () => (app.isPackaged ? autoUpdater.checkForUpdates().catch(() => null) : send({ state: 'dev' })));
+  // 자동 다운로드가 실패했을 때 손으로 다시 받기
+  ipcMain.handle('update:download', () => (app.isPackaged ? autoUpdater.downloadUpdate().catch(() => null) : send({ state: 'dev' })));
   ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
   if (app.isPackaged) setTimeout(() => autoUpdater.checkForUpdates().catch(() => undefined), 4000);
 }

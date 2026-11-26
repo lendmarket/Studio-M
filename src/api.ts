@@ -35,6 +35,8 @@ if (!(window as any).api) {
     exportCancel: noop,
     onExportProgress: off,
     checkUpdate: noop,
+    updateState: async () => ({ current: 'dev', state: 'dev' }),
+    downloadUpdate: noop,
     installUpdate: noop,
     onUpdateStatus: off,
     pathForFile: () => '',

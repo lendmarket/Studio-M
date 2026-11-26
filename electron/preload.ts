@@ -40,6 +40,8 @@ const api = {
   exportCancel: () => ipcRenderer.invoke('export:cancel'),
   onExportProgress: on('export:progress'),
   checkUpdate: () => ipcRenderer.invoke('update:check'),
+  updateState: () => ipcRenderer.invoke('update:state'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
   onUpdateStatus: on('update:status'),
   pathForFile: (f: File): string => webUtils.getPathForFile(f),

@@ -9,6 +9,7 @@ import { createProject, openProjectFile } from '../projectIO';
 import type { ExportInfo, ProjectInfo } from '../../electron/preload';
 import { ProductionsPage } from './Productions';
 import AiSettingsCards from './AiSettings';
+import { UpdateCard } from './UpdateBanner';
 
 const NAV: { id: HomePage; label: string; icon: string; soon?: string }[] = [
   { id: 'home', label: '홈', icon: 'home' },
@@ -408,13 +409,11 @@ function SettingsPage() {
           })}
         </div>
       </div>
+      <UpdateCard />
       <div className="set-card">
         <h3>앱</h3>
         <div className="set-row">
           <span>Studio M v{version}</span>
-          <button className="btn ghost" onClick={() => api.checkUpdate()}>
-            업데이트 확인
-          </button>
           <button className="btn ghost" onClick={() => api.openLogs()}>
             로그 폴더
           </button>
